@@ -1,0 +1,28 @@
+/* Layout.css - УПРОЩЕННАЯ ВЕРСИЯ */
+
+.layout {
+  min-height: 100vh;
+}
+
+/* Главный контент - БЕЗ отступов сверху */
+.main-content {
+  width: 100%;
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+/* Контейнер страницы */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  padding-top: 20px !important; /* Важно: убрать отступ сверху */
+}
+
+/* Мобильная версия */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 15px;
+    padding-top: 15px !important;
+  }
+}

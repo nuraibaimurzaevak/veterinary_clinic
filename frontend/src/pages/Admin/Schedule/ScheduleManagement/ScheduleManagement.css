@@ -1,0 +1,189 @@
+.schedule-management {
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.tabs-section {
+  margin-bottom: 24px;
+}
+
+.search-section {
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  align-items: flex-end;
+}
+
+/* Стили для карточек ветеринаров */
+.vet-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.vet-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.vet-avatar {
+  width: 60px;
+  height: 60px;
+}
+
+.vet-info {
+  flex: 1;
+}
+
+.schedule-summary {
+  margin-bottom: 20px;
+}
+
+.days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.day-chip {
+  min-width: 32px;
+  height: 24px;
+  font-size: 0.75rem;
+}
+
+.time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-icon {
+  color: #666;
+  display: flex;
+  align-items: center;
+}
+
+.exceptions {
+  margin-top: 12px;
+}
+
+.exception-chip {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.today-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+}
+
+.card-actions {
+  padding: 16px;
+  margin-top: auto;
+  border-top: 1px solid #eee;
+}
+
+/* Стили для диалога */
+.dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.schedule-editor {
+  padding-top: 8px;
+}
+
+.days-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.day-selector-chip {
+  width: 40px;
+  height: 40px;
+  font-size: 0.875rem;
+}
+
+.day-selector-chip.working {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.exceptions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.exception-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+.exception-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .search-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .today-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .exception-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .exception-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

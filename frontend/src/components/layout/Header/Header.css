@@ -1,0 +1,373 @@
+/* Переменные цветов */
+:root {
+  --primary-color: #7688BA;
+  --secondary-color: #9EAECF;
+  --light-color: #F4F4F4;
+  --accent-color: #E0E0DE;
+  --white: #FFFFFF;
+  --text-color: #333333;
+  --text-light: #666666;
+  --header-height: 70px;
+}
+
+/* Хедер */
+.header {
+  background: var(--white);
+  box-shadow: 0 2px 20px rgba(118, 136, 186, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid var(--accent-color);
+  height: var(--header-height);
+}
+
+.header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  height: 100%;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  position: relative;
+  height: 100%;
+}
+
+/* Логотип */
+.logo-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.3s ease;
+}
+
+.logo-link:hover {
+  transform: scale(1.05);
+}
+
+.logo-icon {
+  font-size: 28px;
+}
+
+.logo-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-color);
+  letter-spacing: -0.5px;
+}
+
+/* Бургер меню */
+.menu-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30px;
+  height: 21px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1002;
+  position: relative;
+}
+
+.menu-toggle-line {
+  display: block;
+  height: 3px;
+  width: 100%;
+  background: var(--primary-color);
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.menu-toggle.active .menu-toggle-line:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.menu-toggle.active .menu-toggle-line:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-toggle.active .menu-toggle-line:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+/* Навигация */
+.nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.nav-link {
+  color: var(--text-color);
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 8px 12px;
+  position: relative;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.nav-link:hover {
+  color: var(--primary-color);
+  background: rgba(118, 136, 186, 0.05);
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 70%;
+}
+
+/* Кнопки как ссылки в навигации */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  background: var(--primary-color);
+  color: var(--white) !important;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  text-align: center;
+  white-space: nowrap;
+  margin: 0;
+  font-family: inherit;
+}
+
+.nav-btn:hover {
+  background: #6574A5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(118, 136, 186, 0.3);
+  color: var(--white) !important;
+}
+
+.nav-btn::after {
+  display: none !important;
+}
+
+.nav-btn-outline {
+  background: transparent;
+  border: 2px solid var(--primary-color);
+  color: var(--primary-color) !important;
+}
+
+.nav-btn-outline:hover {
+  background: var(--primary-color);
+  color: var(--white) !important;
+}
+
+/* Кнопки авторизации (старый стиль для десктопа) */
+.auth-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.user-greeting {
+  color: var(--text-light);
+  font-size: 14px;
+  margin-right: 10px;
+}
+
+.user-name {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Затемнение фона - ИСПРАВЛЕНО */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998; /* Меньше чем у меню */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.menu-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ============ МОБИЛЬНАЯ ВЕРСИЯ ============ */
+@media (max-width: 768px) {
+  .menu-toggle {
+    display: flex;
+  }
+
+  /* Мобильная навигация - ИСПРАВЛЕНО */
+  .nav {
+    position: fixed;
+    top: 0;
+    right: -280px; /* Ширина меню */
+    bottom: 0;
+    width: 280px;
+    background: var(--white);
+    flex-direction: column;
+    padding: 80px 25px 25px;
+    gap: 0;
+    transition: right 0.3s ease;
+    z-index: 1001; /* Выше чем overlay */
+    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
+    align-items: stretch;
+    overflow-y: auto; /* Добавляем скролл если нужно */
+  }
+
+  .nav.active {
+    right: 0;
+  }
+
+  .nav-link, .nav-btn {
+    width: 100%;
+    padding: 14px 16px;
+    margin: 4px 0;
+    border-bottom: 1px solid rgba(224, 224, 222, 0.5);
+    font-size: 16px;
+    text-align: left;
+    display: block;
+    border-radius: 8px;
+  }
+
+  .nav-link:last-child, .nav-btn:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+
+  /* Фиксируем последнюю кнопку */
+  .nav-btn:last-of-type {
+    margin-top: auto; /* Прижимаем к низу если нужно */
+  }
+
+  .nav-link:hover, .nav-btn:hover {
+    background: rgba(118, 136, 186, 0.1);
+  }
+
+  .nav-link::after, .nav-btn::after {
+    display: none;
+  }
+
+  /* Скрываем десктопные кнопки авторизации */
+  .auth-buttons {
+    display: none;
+  }
+}
+
+/* Планшетная версия */
+@media (max-width: 992px) {
+  .nav {
+    gap: 15px;
+  }
+
+  .nav-link, .nav-btn {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+
+  .auth-buttons {
+    gap: 8px;
+  }
+}
+
+/* Анимации */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.nav-link, .nav-btn {
+  animation: slideIn 0.3s ease forwards;
+}
+
+/* Активная ссылка */
+.nav-link.active {
+  color: var(--primary-color);
+  font-weight: 600;
+  background: rgba(118, 136, 186, 0.1);
+}
+
+.nav-link.active::after {
+  width: 70%;
+}
+
+/* Десктопная версия */
+@media (min-width: 769px) {
+  .menu-toggle {
+    display: none !important;
+  }
+  
+  .nav {
+    display: flex !important;
+    position: static !important;
+    width: auto !important;
+    background: none !important;
+    box-shadow: none !important;
+    flex-direction: row !important;
+    padding: 0 !important;
+    align-items: center !important;
+  }
+  
+  .nav-link, .nav-btn {
+    padding: 8px 16px !important;
+    border-bottom: none !important;
+    font-size: 15px !important;
+    text-align: center !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  
+  .auth-buttons {
+    display: none !important; /* Скрываем старые кнопки */
+  }
+  
+  .menu-overlay {
+    display: none !important;
+  }
+}
+
+/* Для очень маленьких экранов */
+@media (max-width: 480px) {
+  .nav {
+    width: 100%;
+    max-width: 280px;
+    padding: 70px 20px 20px;
+  }
+  
+  /* Убедимся что кнопки видны */
+  .nav-btn {
+    padding: 12px 16px !important;
+  }
+}
