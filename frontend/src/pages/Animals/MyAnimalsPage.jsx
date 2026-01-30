@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MyAnimalsPage.css';
 
+const API_URL = 'http://localhost:5000/api';
+
 const MyAnimalsPage = () => {
   const navigate = useNavigate();
   const [animals, setAnimals] = useState([]);
@@ -12,8 +14,10 @@ const MyAnimalsPage = () => {
   const [animalToDelete, setAnimalToDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [error, setError] = useState('');
+  const [userRole, setUserRole] = useState('user');
 
-  // Форма для добавления/редактирования животного
+  // Форма для добавления животного
   const [animalForm, setAnimalForm] = useState({
     name: '',
     type: 'dog',
@@ -24,124 +28,136 @@ const MyAnimalsPage = () => {
     weightUnit: 'kg',
     gender: 'male',
     color: '',
-    chipNumber: '',
+    microchipNumber: '',
     notes: '',
     avatar: '🐶'
   });
 
-  // Моковые данные животных
-  const mockAnimals = [
-    {
-      id: '1',
-      name: 'Барсик',
-      type: 'cat',
-      breed: 'Британская короткошерстная',
-      age: '4',
-      ageUnit: 'years',
-      weight: '5',
-      weightUnit: 'kg',
-      gender: 'male',
-      color: 'Серый',
-      chipNumber: 'CHIP123456789',
-      avatar: '🐱',
-      createdAt: '2023-01-15',
-      lastVisit: '2024-02-10',
-      vaccinations: ['Комплексная вакцинация', 'От бешенства'],
-      allergies: ['Нет'],
-      chronicDiseases: ['Нет']
-    },
-    {
-      id: '2',
-      name: 'Рекс',
-      type: 'dog',
-      breed: 'Немецкая овчарка',
-      age: '3',
-      ageUnit: 'years',
-      weight: '35',
-      weightUnit: 'kg',
-      gender: 'male',
-      color: 'Черно-подпалый',
-      chipNumber: 'CHIP987654321',
-      avatar: '🐕',
-      createdAt: '2022-05-20',
-      lastVisit: '2024-02-05',
-      vaccinations: ['Комплексная вакцинация', 'От бешенства', 'От лептоспироза'],
-      allergies: ['Курица'],
-      chronicDiseases: ['Нет']
-    },
-    {
-      id: '3',
-      name: 'Кеша',
-      type: 'bird',
-      breed: 'Волнистый попугай',
-      age: '1',
-      ageUnit: 'years',
-      weight: '0.05',
-      weightUnit: 'kg',
-      gender: 'male',
-      color: 'Синий',
-      chipNumber: '',
-      avatar: '🐦',
-      createdAt: '2023-11-10',
-      lastVisit: '2024-01-20',
-      vaccinations: [],
-      allergies: ['Авокадо'],
-      chronicDiseases: ['Нет']
-    },
-    {
-      id: '4',
-      name: 'Мурка',
-      type: 'cat',
-      breed: 'Дворовая',
-      age: '2',
-      ageUnit: 'years',
-      weight: '3.5',
-      weightUnit: 'kg',
-      gender: 'female',
-      color: 'Трехцветная',
-      chipNumber: 'CHIP555666777',
-      avatar: '🐈',
-      createdAt: '2023-03-08',
-      lastVisit: '2024-02-15',
-      vaccinations: ['Комплексная вакцинация'],
-      allergies: ['Нет'],
-      chronicDiseases: ['Мочекаменная болезнь']
-    }
-  ];
+  // Получение токена
+  const getToken = () => {
+    return localStorage.getItem('token');
+  };
 
-  // Загрузка данных
+  // Получение пользователя
+  const getUser = () => {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  };
+
+  // Загрузка животных с сервера
   useEffect(() => {
-    const loadAnimals = async () => {
-      setIsLoading(true);
-      try {
-        // Имитация загрузки
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setAnimals(mockAnimals);
-      } catch (error) {
-        console.error('Ошибка загрузки животных:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadAnimals();
+    const user = getUser();
+    if (user) {
+      setUserRole(user.role);
+    }
   }, []);
+
+  const loadAnimals = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const token = getToken();
+      const user = getUser();
+      
+      if (!token || !user) {
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/animals/user`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Ошибка загрузки животных');
+      }
+
+      // Преобразуем данные с сервера в нужный формат
+      const formattedAnimals = result.map(animal => ({
+        id: animal._id,
+        name: animal.name,
+        type: animal.type.toLowerCase(),
+        breed: animal.breed || '',
+        age: animal.age?.years?.toString() || animal.age || '',
+        ageUnit: 'years',
+        weight: animal.weight?.toString() || '',
+        weightUnit: 'kg',
+        gender: animal.gender === 'Мужской' ? 'male' : 'female',
+        color: animal.color || '',
+        chipNumber: animal.microchipNumber || '',
+        avatar: getAvatarByType(animal.type),
+        createdAt: animal.createdAt ? new Date(animal.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        ownerName: animal.createdBy ? `${animal.createdBy.firstName} ${animal.createdBy.lastName}` : 'Неизвестно',
+        ownerEmail: animal.createdBy?.email || '',
+        ownerType: animal.ownerType || 'user'
+      }));
+
+      setAnimals(formattedAnimals);
+
+    } catch (error) {
+      console.error('Ошибка загрузки животных:', error);
+      setError('Не удалось загрузить животных');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Получение аватара по типу
+  const getAvatarByType = (type) => {
+    const avatars = {
+      'Собака': '🐕',
+      'Кот': '🐱',
+      'Попугай': '🐦',
+      'Хомяк': '🐹',
+      'Кролик': '🐰',
+      'Другое': '🐾',
+      'dog': '🐕',
+      'cat': '🐱',
+      'bird': '🐦',
+      'rabbit': '🐰',
+      'hamster': '🐹',
+      'other': '🐾'
+    };
+    return avatars[type] || '🐾';
+  };
+
+  // Получение типа для отправки на сервер
+  const getTypeForServer = (type) => {
+    const typesMap = {
+      'dog': 'Собака',
+      'cat': 'Кот',
+      'bird': 'Попугай',
+      'rabbit': 'Кролик',
+      'hamster': 'Хомяк',
+      'other': 'Другое'
+    };
+    return typesMap[type] || 'Другое';
+  };
+
+  // Получение пола для отправки на сервер
+  const getGenderForServer = (gender) => {
+    return gender === 'male' ? 'Мужской' : 'Женский';
+  };
 
   // Фильтрация животных
   const filteredAnimals = animals.filter(animal => {
-    // Фильтр по типу
     if (filterType !== 'all' && animal.type !== filterType) return false;
-    
-    // Поиск
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       return (
         animal.name.toLowerCase().includes(term) ||
-        animal.breed.toLowerCase().includes(term) ||
-        animal.color.toLowerCase().includes(term)
+        (animal.breed && animal.breed.toLowerCase().includes(term)) ||
+        (animal.color && animal.color.toLowerCase().includes(term))
       );
     }
-    
     return true;
   });
 
@@ -182,7 +198,6 @@ const MyAnimalsPage = () => {
   const handleFormChange = (field, value) => {
     setAnimalForm(prev => ({ ...prev, [field]: value }));
     
-    // Автоматически меняем аватар при смене типа
     if (field === 'type') {
       const avatars = {
         dog: '🐶',
@@ -196,42 +211,107 @@ const MyAnimalsPage = () => {
     }
   };
 
-  // Добавление животного
-  const handleAddAnimal = () => {
-    const newAnimal = {
-      id: Date.now().toString(),
-      ...animalForm,
-      createdAt: new Date().toISOString().split('T')[0],
-      lastVisit: '',
-      vaccinations: [],
-      allergies: ['Нет'],
-      chronicDiseases: ['Нет']
-    };
+  // Добавление животного на сервер
+  const handleAddAnimal = async () => {
+    if (!animalForm.name.trim()) {
+      alert('Введите имя питомца');
+      return;
+    }
 
-    setAnimals(prev => [...prev, newAnimal]);
-    setShowAddModal(false);
-    resetForm();
-    alert('Питомец успешно добавлен!');
+    const token = getToken();
+    const user = getUser();
+    
+    if (!token || !user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const animalData = {
+        name: animalForm.name,
+        type: getTypeForServer(animalForm.type),
+        breed: animalForm.breed || '',
+        age: {
+          years: parseInt(animalForm.age) || 0,
+          months: 0
+        },
+        weight: parseFloat(animalForm.weight) || 0,
+        gender: getGenderForServer(animalForm.gender),
+        color: animalForm.color || '',
+        microchipNumber: animalForm.microchipNumber || ''
+      };
+
+      const response = await fetch(`${API_URL}/animals`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(animalData)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Ошибка при добавлении животного');
+      }
+
+      // Обновляем список животных
+      loadAnimals();
+      setShowAddModal(false);
+      resetForm();
+      alert('Питомец успешно добавлен!');
+
+    } catch (error) {
+      console.error('Ошибка добавления животного:', error);
+      alert(error.message || 'Произошла ошибка при добавлении питомца');
+    }
   };
 
-  // Редактирование животного
+  // Редактирование животного (пока не реализовано)
   const handleEditAnimal = (animal) => {
-    setAnimalForm(animal);
-    setSelectedAnimal(animal);
-    setShowAddModal(true);
+    alert('Редактирование пока не реализовано');
   };
 
-  // Удаление животного
+  // Удаление животного с сервера
   const handleDeleteClick = (animal) => {
     setAnimalToDelete(animal);
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
-    setAnimals(prev => prev.filter(animal => animal.id !== animalToDelete.id));
-    setShowDeleteModal(false);
-    setAnimalToDelete(null);
-    alert('Питомец удален');
+  const confirmDelete = async () => {
+    const token = getToken();
+    
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/animals/${animalToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Ошибка при удалении животного');
+      }
+
+      // Удаляем из списка
+      setAnimals(prev => prev.filter(animal => animal.id !== animalToDelete.id));
+      setShowDeleteModal(false);
+      setAnimalToDelete(null);
+      alert('Питомец удален');
+
+    } catch (error) {
+      console.error('Ошибка удаления животного:', error);
+      alert(error.message || 'Произошла ошибка при удалении питомца');
+    }
   };
 
   // Сброс формы
@@ -246,21 +326,21 @@ const MyAnimalsPage = () => {
       weightUnit: 'kg',
       gender: 'male',
       color: '',
-      chipNumber: '',
+      microchipNumber: '',
       notes: '',
       avatar: '🐶'
     });
     setSelectedAnimal(null);
   };
 
-  // Запись на прием для животного
+  // Запись на прием
   const handleBookAppointment = (animal) => {
     navigate(`/booking?animal=${animal.id}`);
   };
 
-  // Просмотр истории посещений
+  // Просмотр истории
   const handleViewHistory = (animal) => {
-    navigate(`/appointments?animal=${animal.id}`);
+    alert('История пока не реализована');
   };
 
   // Рендер карточки животного
@@ -284,18 +364,23 @@ const MyAnimalsPage = () => {
             </div>
             
             <div className="animal-details">
-              <p className="animal-breed">{animal.breed}</p>
+              <p className="animal-breed">{animal.breed || 'Без породы'}</p>
               <div className="animal-meta">
                 <span className="animal-meta-item">
                   {genderInfo.icon} {genderInfo.label}
                 </span>
                 <span className="animal-meta-item">
-                  {animal.age} {animal.ageUnit === 'years' ? 'лет' : 'мес'}
+                  {animal.age || '0'} {animal.ageUnit === 'years' ? 'лет' : 'мес'}
                 </span>
                 <span className="animal-meta-item">
-                  {animal.weight} {animal.weightUnit}
+                  {animal.weight || '0'} {animal.weightUnit}
                 </span>
               </div>
+              {userRole === 'admin' && (
+                <div className="animal-owner">
+                  <small>Владелец: {animal.ownerName} ({animal.ownerEmail})</small>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -304,7 +389,7 @@ const MyAnimalsPage = () => {
           <div className="animal-info-grid">
             <div className="info-item">
               <span className="info-label">Окрас:</span>
-              <span className="info-value">{animal.color}</span>
+              <span className="info-value">{animal.color || 'Не указан'}</span>
             </div>
             
             {animal.chipNumber && (
@@ -320,36 +405,6 @@ const MyAnimalsPage = () => {
                 {new Date(animal.createdAt).toLocaleDateString('ru-RU')}
               </span>
             </div>
-            
-            {animal.lastVisit && (
-              <div className="info-item">
-                <span className="info-label">Последний визит:</span>
-                <span className="info-value">
-                  {new Date(animal.lastVisit).toLocaleDateString('ru-RU')}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Особенности здоровья */}
-          <div className="animal-health">
-            {animal.allergies[0] !== 'Нет' && (
-              <div className="health-tag warning">
-                ⚠️ Аллергии: {animal.allergies.join(', ')}
-              </div>
-            )}
-            
-            {animal.chronicDiseases[0] !== 'Нет' && (
-              <div className="health-tag danger">
-                ⚕️ Хронические заболевания: {animal.chronicDiseases.join(', ')}
-              </div>
-            )}
-            
-            {animal.vaccinations.length > 0 && (
-              <div className="health-tag success">
-                💉 Вакцинации: {animal.vaccinations.length}
-              </div>
-            )}
           </div>
         </div>
 
@@ -372,6 +427,7 @@ const MyAnimalsPage = () => {
             <button 
               className="btn btn-sm btn-warning"
               onClick={() => handleEditAnimal(animal)}
+              disabled
             >
               ✏️ Редактировать
             </button>
@@ -430,11 +486,15 @@ const MyAnimalsPage = () => {
   return (
     <div className="animals-page">
       <div className="container">
-        {/* Заголовок */}
         <div className="page-header">
           <div>
-            <h1>🐕 Мои питомцы</h1>
-            <p>Управление информацией о ваших животных</p>
+            <h1>🐕 {userRole === 'admin' ? 'Все животные' : 'Мои питомцы'}</h1>
+            <p>{userRole === 'admin' ? 'Управление всеми животными в системе' : 'Управление информацией о ваших животных'}</p>
+            {error && (
+              <div className="error-message">
+                ⚠️ {error}
+              </div>
+            )}
           </div>
           
           <div className="header-actions">
@@ -450,7 +510,6 @@ const MyAnimalsPage = () => {
           </div>
         </div>
 
-        {/* Статистика */}
         <div className="stats-cards">
           <div className="stat-card">
             <div className="stat-icon">🐾</div>
@@ -485,7 +544,6 @@ const MyAnimalsPage = () => {
           </div>
         </div>
 
-        {/* Фильтры и поиск */}
         <div className="filters-section">
           <div className="search-box">
             <input
@@ -525,17 +583,16 @@ const MyAnimalsPage = () => {
           </div>
         </div>
 
-        {/* Список животных */}
         <div className="animals-container">
           {renderAnimalsList()}
         </div>
 
-        {/* Модальное окно добавления/редактирования */}
+        {/* Модальное окно добавления */}
         {showAddModal && (
           <div className="modal-overlay">
             <div className="modal-content">
               <div className="modal-header">
-                <h2>{selectedAnimal ? 'Редактировать питомца' : 'Добавить питомца'}</h2>
+                <h2>Добавить питомца</h2>
                 <button 
                   className="modal-close" 
                   onClick={() => {
@@ -610,51 +667,31 @@ const MyAnimalsPage = () => {
                   
                   <div className="form-row">
                     <div className="form-group">
-                      <label htmlFor="age">Возраст</label>
-                      <div className="input-with-unit">
-                        <input
-                          id="age"
-                          type="number"
-                          value={animalForm.age}
-                          onChange={(e) => handleFormChange('age', e.target.value)}
-                          placeholder="0"
-                          className="form-input"
-                          min="0"
-                          step="0.1"
-                        />
-                        <select
-                          value={animalForm.ageUnit}
-                          onChange={(e) => handleFormChange('ageUnit', e.target.value)}
-                          className="unit-select"
-                        >
-                          <option value="years">лет</option>
-                          <option value="months">мес</option>
-                        </select>
-                      </div>
+                      <label htmlFor="age">Возраст (лет)</label>
+                      <input
+                        id="age"
+                        type="number"
+                        value={animalForm.age}
+                        onChange={(e) => handleFormChange('age', e.target.value)}
+                        placeholder="0"
+                        className="form-input"
+                        min="0"
+                        step="0.1"
+                      />
                     </div>
                     
                     <div className="form-group">
-                      <label htmlFor="weight">Вес</label>
-                      <div className="input-with-unit">
-                        <input
-                          id="weight"
-                          type="number"
-                          value={animalForm.weight}
-                          onChange={(e) => handleFormChange('weight', e.target.value)}
-                          placeholder="0"
-                          className="form-input"
-                          min="0"
-                          step="0.1"
-                        />
-                        <select
-                          value={animalForm.weightUnit}
-                          onChange={(e) => handleFormChange('weightUnit', e.target.value)}
-                          className="unit-select"
-                        >
-                          <option value="kg">кг</option>
-                          <option value="g">г</option>
-                        </select>
-                      </div>
+                      <label htmlFor="weight">Вес (кг)</label>
+                      <input
+                        id="weight"
+                        type="number"
+                        value={animalForm.weight}
+                        onChange={(e) => handleFormChange('weight', e.target.value)}
+                        placeholder="0"
+                        className="form-input"
+                        min="0"
+                        step="0.1"
+                      />
                     </div>
                   </div>
                   
@@ -676,24 +713,12 @@ const MyAnimalsPage = () => {
                       <input
                         id="chipNumber"
                         type="text"
-                        value={animalForm.chipNumber}
-                        onChange={(e) => handleFormChange('chipNumber', e.target.value)}
+                        value={animalForm.microchipNumber}
+                        onChange={(e) => handleFormChange('microchipNumber', e.target.value)}
                         placeholder="Необязательно"
                         className="form-input"
                       />
                     </div>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="notes">Дополнительная информация</label>
-                    <textarea
-                      id="notes"
-                      value={animalForm.notes}
-                      onChange={(e) => handleFormChange('notes', e.target.value)}
-                      placeholder="Особенности здоровья, характер, предпочтения..."
-                      rows="3"
-                      className="form-textarea"
-                    />
                   </div>
                 </form>
               </div>
@@ -713,7 +738,7 @@ const MyAnimalsPage = () => {
                   onClick={handleAddAnimal}
                   disabled={!animalForm.name.trim()}
                 >
-                  {selectedAnimal ? 'Сохранить изменения' : 'Добавить питомца'}
+                  Добавить питомца
                 </button>
               </div>
             </div>
@@ -742,8 +767,7 @@ const MyAnimalsPage = () => {
                   <span className="warning-icon">⚠️</span>
                   <h3>Вы уверены, что хотите удалить {animalToDelete.name}?</h3>
                   <p>
-                    Это действие нельзя отменить. Будут удалены все данные о питомце, 
-                    включая историю посещений и медицинские записи.
+                    Это действие нельзя отменить. Будут удалены все данные о питомце.
                   </p>
                 </div>
               </div>

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import './LoginPage.css'
+import './LoginPage.css';
+
+const API_URL = 'http://localhost:5000/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,7 +22,6 @@ const Login = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
     
-    // Очищаем ошибки при изменении
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -38,8 +39,6 @@ const Login = () => {
     
     if (!formData.password) {
       newErrors.password = 'Введите пароль';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Пароль должен быть не менее 6 символов';
     }
     
     return newErrors;
@@ -58,47 +57,72 @@ const Login = () => {
     setLoginError('');
     
     try {
-      // Имитация запроса к API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Проверка демо-учетных данных
-      if (formData.email === 'demo@vetclinic.ru' && formData.password === 'password') {
-        console.log('Успешный вход:', formData);
-        
-        // Сохраняем в localStorage
-        if (formData.rememberMe) {
-          localStorage.setItem('rememberMe', 'true');
-        }
-        
-        // Перенаправляем на главную
-        navigate('/');
-      } else {
-        throw new Error('Неверный email или пароль');
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Ошибка при входе');
       }
+
+      // Сохраняем токен и данные пользователя
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Сохраняем настройку "запомнить меня"
+      if (formData.rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberMe');
+      }
+      
+      // РЕДИРЕКТ В ЗАВИСИМОСТИ ОТ РОЛИ
+      if (data.user.role === 'admin') {
+        navigate('/dashboard'); // Админ
+      } else {
+        navigate('/'); // Обычный пользователь на главную
+      }
+      
     } catch (error) {
       setLoginError(error.message || 'Ошибка при входе. Попробуйте снова.');
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleDemoLogin = () => {
-    setFormData({
-      email: 'demo@vetclinic.ru',
-      password: 'password',
-      rememberMe: true
-    });
   };
 
   const handleForgotPassword = () => {
     alert('Функция восстановления пароля в разработке');
   };
 
+  // При загрузке компонента, проверяем сохраненный email
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    if (rememberedEmail) {
+      setFormData(prev => ({
+        ...prev,
+        email: rememberedEmail,
+        rememberMe: true
+      }));
+    }
+  }, []);
+
   return (
     <div className="login-page">
       <div className="container">
         <div className="login-wrapper">
-          {/* Левая часть - иллюстрация/информация */}
+          {/* Левая часть - информация */}
           <div className="login-info">
             <div className="login-info-content">
               <h1 className="login-title">С возвращением!</h1>
@@ -226,43 +250,11 @@ const Login = () => {
                   )}
                 </button>
 
-                <div className="demo-login">
-                  <button
-                    type="button"
-                    onClick={handleDemoLogin}
-                    className="btn btn-outline btn-block"
-                    disabled={isLoading}
-                  >
-                    Попробовать демо-аккаунт
-                  </button>
-                  <p className="demo-hint">
-                    Email: demo@vetclinic.ru<br />
-                    Пароль: password
-                  </p>
-                </div>
-
-                <div className="form-divider">
-                  <span>или</span>
-                </div>
-
-                <div className="social-login">
-                  <button type="button" className="btn btn-social">
-                    <span className="social-icon">G</span>
-                    Продолжить с Google
-                  </button>
-                  
-                </div>
-
                 <div className="form-footer">
                   <p>
                     Ещё нет аккаунта?{' '}
                     <Link to="/register" className="link">
                       Зарегистрироваться
-                    </Link>
-                  </p>
-                  <p className="back-home">
-                    <Link to="/" className="link">
-                      ← Вернуться на главную
                     </Link>
                   </p>
                 </div>

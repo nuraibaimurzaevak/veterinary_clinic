@@ -2,103 +2,57 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Booking.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
 const Booking = () => {
-  
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [bookingData, setBookingData] = useState({
-    // Шаг 1: Выбор животного
     animalId: '',
-    
-    // Шаг 2: Причина обращения
-    reason: '',
+    service: '',
     symptoms: [],
-    customReason: '',
-    
-    // Шаг 3: Автоматический выбор специалиста
-    specialization: '',
-    
-    // Шаг 4: Выбор ветеринара
-    vetId: '',
-    
-    // Шаг 5: Дата и время
-    date: '',
-    timeSlot: '',
-    
-    // Шаг 6: Дополнительная информация
     notes: '',
-    emergency: false
+    specialization: '',
+    vetId: '',
+    date: '',
+    time: '',
+    emergency: false,
+    price: 0
   });
 
-  // Моковые данные
-  const [userAnimals, setUserAnimals] = useState([
-    { id: '1', name: 'Барсик', type: 'Кот', breed: 'Британская', age: '4 года', avatar: '🐱' },
-    { id: '2', name: 'Рекс', type: 'Собака', breed: 'Немецкая овчарка', age: '3 года', avatar: '🐕' },
-    { id: '3', name: 'Кеша', type: 'Попугай', breed: 'Волнистый', age: '1 год', avatar: '🐦' },
-  ]);
-
+  const [userAnimals, setUserAnimals] = useState([]);
   const [reasons, setReasons] = useState([
-    { id: 'checkup', label: 'Плановый осмотр', specialization: 'therapist' },
-    { id: 'vaccination', label: 'Вакцинация', specialization: 'therapist' },
-    { id: 'skin', label: 'Кожные проблемы (зуд, сыпь)', specialization: 'dermatologist' },
-    { id: 'wound', label: 'Рана/травма', specialization: 'surgeon' },
-    { id: 'fracture', label: 'Перелом', specialization: 'surgeon' },
-    { id: 'teeth', label: 'Проблемы с зубами', specialization: 'dentist' },
-    { id: 'eyes', label: 'Заболевания глаз', specialization: 'ophthalmologist' },
-    { id: 'ears', label: 'Проблемы с ушами', specialization: 'therapist' },
-    { id: 'digestion', label: 'Пищеварение (рвота, понос)', specialization: 'therapist' },
-    { id: 'other', label: 'Другое', specialization: 'therapist' },
+    { id: 'checkup', label: 'Плановый осмотр', specialization: 'Терапевт' },
+    { id: 'vaccination', label: 'Вакцинация', specialization: 'Терапевт' },
+    { id: 'skin', label: 'Кожные проблемы', specialization: 'Дерматолог' },
+    { id: 'wound', label: 'Рана/травма', specialization: 'Хирург' },
+    { id: 'fracture', label: 'Перелом', specialization: 'Хирург' },
+    { id: 'teeth', label: 'Проблемы с зубами', specialization: 'Стоматолог' },
+    { id: 'eyes', label: 'Заболевания глаз', specialization: 'Офтальмолог' },
+    { id: 'ears', label: 'Проблемы с ушами', specialization: 'Терапевт' },
+    { id: 'digestion', label: 'Пищеварение', specialization: 'Терапевт' },
+    { id: 'other', label: 'Другое', specialization: 'Терапевт' },
   ]);
 
   const [specializations, setSpecializations] = useState([
-    { id: 'therapist', label: 'Терапевт', icon: '🩺', color: '#8CA8D9' },
-    { id: 'surgeon', label: 'Хирург', icon: '🔪', color: '#F56565' },
-    { id: 'dermatologist', label: 'Дерматолог', icon: '🔍', color: '#ED8936' },
-    { id: 'ophthalmologist', label: 'Офтальмолог', icon: '👁️', color: '#4299E1' },
-    { id: 'dentist', label: 'Стоматолог', icon: '🦷', color: '#9F7AEA' },
-    { id: 'cardiologist', label: 'Кардиолог', icon: '❤️', color: '#F687B3' },
+    { id: 'Терапевт', label: 'Терапевт', icon: '🩺', color: '#8CA8D9' },
+    { id: 'Хирург', label: 'Хирург', icon: '🔪', color: '#F56565' },
+    { id: 'Дерматолог', label: 'Дерматолог', icon: '🔍', color: '#ED8936' },
+    { id: 'Офтальмолог', label: 'Офтальмолог', icon: '👁️', color: '#4299E1' },
+    { id: 'Стоматолог', label: 'Стоматолог', icon: '🦷', color: '#9F7AEA' },
   ]);
 
-  const [vets, setVets] = useState([
-    { 
-      id: '1', 
-      name: 'Петрова Анна Сергеевна', 
-      specialization: ['therapist', 'dermatologist'],
-      experience: 8,
-      rating: 4.8,
-      description: 'Специалист широкого профиля',
-      availableSlots: ['09:00', '10:30', '14:00', '15:30'],
-      avatar: '👩‍⚕️'
-    },
-    { 
-      id: '2', 
-      name: 'Сидоров Дмитрий Алексеевич', 
-      specialization: ['surgeon'],
-      experience: 12,
-      rating: 4.9,
-      description: 'Хирург высшей категории',
-      availableSlots: ['10:00', '11:30', '16:00', '17:30'],
-      avatar: '👨‍⚕️'
-    },
-    { 
-      id: '3', 
-      name: 'Кузнецова Елена Владимировна', 
-      specialization: ['ophthalmologist'],
-      experience: 6,
-      rating: 4.7,
-      description: 'Специалист по заболеваниям глаз',
-      availableSlots: ['09:30', '11:00', '14:30', '16:00'],
-      avatar: '👩‍⚕️'
-    },
-  ]);
-
+  const [vets, setVets] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
   const [filteredVets, setFilteredVets] = useState([]);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [busySlots, setBusySlots] = useState([]);
+  const [vetWorkingHours, setVetWorkingHours] = useState({});
 
-  // Шаги записи
   const steps = [
     { number: 1, title: 'Животное', description: 'Выберите питомца' },
     { number: 2, title: 'Причина', description: 'Укажите симптомы' },
@@ -108,13 +62,151 @@ const Booking = () => {
     { number: 6, title: 'Подтверждение', description: 'Проверка данных' },
   ];
 
-  // Генерация доступных дат (7 дней вперед)
+  // Получение токена
+  const getAuthToken = () => {
+    return localStorage.getItem('token');
+  };
+
+  // API запрос
+  const apiRequest = async (endpoint, options = {}) => {
+    const token = getAuthToken();
+    
+    if (!token) {
+      navigate('/login');
+      throw new Error('Требуется авторизация');
+    }
+
+    const defaultOptions = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, defaultOptions);
+      
+      if (response.status === 401) {
+        localStorage.clear();
+        navigate('/login');
+        throw new Error('Сессия истекла');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  };
+
+  // Загрузка данных из БД
   useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // Загрузка животных пользователя
+        const animalsData = await apiRequest('/animals/user');
+        setUserAnimals(animalsData || []);
+
+        // Загрузка ветеринаров
+        const vetsResponse = await apiRequest('/vets');
+        console.log('Ветеринары с сервера:', vetsResponse); // Для отладки
+        
+        // Проверяем структуру данных ветеринара
+        const processedVets = vetsResponse.map(vet => {
+          console.log('Ветеринар:', vet); // Для отладки
+          return {
+            ...vet,
+            // Если в БД есть расписание в виде строки или объекта, парсим его
+            schedule: parseVetSchedule(vet)
+          };
+        });
+        
+        setVets(processedVets || []);
+
+        // Генерация доступных дат
+        generateAvailableDates();
+
+      } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
+        setError(`Ошибка: ${error.message}. Проверьте: 1) Сервер запущен на ${API_BASE_URL}, 2) Эндпоинт /vets доступен`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Парсинг расписания ветеринара из разных форматов
+  const parseVetSchedule = (vet) => {
+    // Если расписание уже в правильном формате
+    if (vet.schedule && typeof vet.schedule === 'object') {
+      return vet.schedule;
+    }
+    
+    // Если расписание в виде JSON строки
+    if (vet.schedule && typeof vet.schedule === 'string') {
+      try {
+        return JSON.parse(vet.schedule);
+      } catch (e) {
+        console.warn('Не удалось распарсить расписание:', vet.schedule);
+      }
+    }
+    
+    // Если есть отдельные поля с рабочими часами
+    if (vet.workingHours) {
+      return createScheduleFromWorkingHours(vet.workingHours);
+    }
+    
+    // Если есть поле workSchedule или подобное
+    if (vet.workSchedule) {
+      return vet.workSchedule;
+    }
+    
+    // Стандартное расписание по умолчанию
+    return {
+      monday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      wednesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      thursday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      friday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      saturday: { isWorking: false, startTime: '10:00', endTime: '16:00' },
+      sunday: { isWorking: false, startTime: '10:00', endTime: '14:00' }
+    };
+  };
+
+  // Создание расписания из строки с рабочими часами
+  const createScheduleFromWorkingHours = (workingHours) => {
+    // Пример: "Пн-Пт: 9:00-18:00, Сб: 10:00-16:00, Вс: выходной"
+    const schedule = {
+      monday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      wednesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      thursday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      friday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
+      saturday: { isWorking: false, startTime: '10:00', endTime: '16:00' },
+      sunday: { isWorking: false, startTime: '10:00', endTime: '14:00' }
+    };
+    
+    return schedule;
+  };
+
+  // Генерация доступных дат (14 дней вперед)
+  const generateAvailableDates = () => {
     const dates = [];
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
       date.setDate(today.getDate() + i);
       
       const formattedDate = {
@@ -123,37 +215,121 @@ const Booking = () => {
         day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
         number: date.getDate(),
         month: date.toLocaleDateString('ru-RU', { month: 'short' }),
-        available: i !== 2 && i !== 5 // Пропускаем некоторые дни как пример
+        dayOfWeek: date.getDay(),
+        dayName: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()]
       };
       
       dates.push(formattedDate);
     }
     
     setAvailableDates(dates);
-  }, []);
+  };
+
+  // Проверка, работает ли ветеринар в определенный день
+  const isVetWorkingOnDate = (vet, date) => {
+    if (!vet || !vet.schedule) return true;
+    
+    const dayOfWeek = date.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[dayOfWeek];
+    
+    const daySchedule = vet.schedule[dayName];
+    
+    if (!daySchedule || daySchedule.isWorking === undefined) {
+      return true;
+    }
+    
+    return daySchedule.isWorking;
+  };
+
+  // Получение рабочего расписания на день
+  const getWorkingHoursForDate = (vet, date) => {
+    if (!vet || !vet.schedule) return {
+      isWorking: true,
+      startTime: '09:00',
+      endTime: '18:00',
+      breakStart: null,
+      breakEnd: null
+    };
+    
+    const dayOfWeek = date.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[dayOfWeek];
+    
+    return vet.schedule[dayName] || {
+      isWorking: true,
+      startTime: '09:00',
+      endTime: '18:00',
+      breakStart: null,
+      breakEnd: null
+    };
+  };
 
   // Генерация временных слотов
-  useEffect(() => {
-    const slots = [
-      '09:00', '09:30', '10:00', '10:30', 
-      '11:00', '11:30', '12:00', '12:30',
-      '14:00', '14:30', '15:00', '15:30',
-      '16:00', '16:30', '17:00', '17:30'
-    ];
-    setAvailableTimeSlots(slots);
-  }, []);
+  const generateTimeSlots = (vet, date) => {
+    const daySchedule = getWorkingHoursForDate(vet, date);
+    if (!daySchedule.isWorking) return [];
+    
+    const startTime = daySchedule.startTime || '09:00';
+    const endTime = daySchedule.endTime || '18:00';
+    const breakStart = daySchedule.breakStart;
+    const breakEnd = daySchedule.breakEnd;
+    const slotDuration = vet.slotDuration || 30;
+    
+    const slots = [];
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    
+    let currentHour = startHour;
+    let currentMinute = startMinute;
+    
+    while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
+      const timeSlot = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+      
+      const isBreakTime = breakStart && breakEnd && (timeSlot >= breakStart && timeSlot < breakEnd);
+      
+      if (!isBreakTime) {
+        slots.push({
+          time: timeSlot,
+          isAvailable: true
+        });
+      }
+      
+      currentMinute += slotDuration;
+      if (currentMinute >= 60) {
+        currentHour += 1;
+        currentMinute -= 60;
+      }
+    }
+    
+    return slots;
+  };
+
+  // Получение занятых слотов ветеринара
+  const fetchBusySlots = async (vetId, date) => {
+    try {
+      const response = await apiRequest(`/appointments/vet/${vetId}/availability?date=${date}`);
+      if (response && response.availableSlots) {
+        const busy = response.availableSlots
+          .filter(slot => !slot.isAvailable)
+          .map(slot => slot.time);
+        setBusySlots(busy);
+      }
+    } catch (error) {
+      console.error('Ошибка получения занятых слотов:', error);
+    }
+  };
 
   // Фильтрация ветеринаров по специализации
   useEffect(() => {
     if (bookingData.specialization) {
       const filtered = vets.filter(vet => 
-        vet.specialization.includes(bookingData.specialization)
+        vet.specialization === bookingData.specialization && vet.isActive !== false
       );
       setFilteredVets(filtered);
       
-      // Автовыбор первого ветеринара
       if (filtered.length > 0 && !bookingData.vetId) {
-        setBookingData(prev => ({ ...prev, vetId: filtered[0].id }));
+        setBookingData(prev => ({ ...prev, vetId: filtered[0]._id }));
       }
     }
   }, [bookingData.specialization, vets]);
@@ -161,7 +337,7 @@ const Booking = () => {
   // Выбор животного
   useEffect(() => {
     if (bookingData.animalId) {
-      const animal = userAnimals.find(a => a.id === bookingData.animalId);
+      const animal = userAnimals.find(a => a._id === bookingData.animalId);
       setSelectedAnimal(animal);
     }
   }, [bookingData.animalId, userAnimals]);
@@ -176,7 +352,7 @@ const Booking = () => {
     const reason = reasons.find(r => r.id === reasonId);
     setBookingData(prev => ({
       ...prev,
-      reason: reasonId,
+      service: reason?.label || '',
       specialization: reason?.specialization || ''
     }));
     
@@ -188,12 +364,33 @@ const Booking = () => {
     if (currentStep === 4) goToNextStep();
   };
 
-  const handleDateSelect = (dateId) => {
-    setBookingData(prev => ({ ...prev, date: dateId }));
+  const handleDateSelect = async (dateId) => {
+    setBookingData(prev => ({ 
+      ...prev, 
+      date: dateId, 
+      time: '' 
+    }));
+    
+    setAvailableTimeSlots([]);
+    setBusySlots([]);
+    
+    if (bookingData.vetId) {
+      const vet = vets.find(v => v._id === bookingData.vetId);
+      const selectedDate = new Date(dateId);
+      
+      if (isVetWorkingOnDate(vet, selectedDate)) {
+        // Генерируем слоты локально
+        const slots = generateTimeSlots(vet, selectedDate);
+        setAvailableTimeSlots(slots);
+        
+        // Загружаем занятые слоты
+        await fetchBusySlots(bookingData.vetId, dateId);
+      }
+    }
   };
 
-  const handleTimeSelect = (timeSlot) => {
-    setBookingData(prev => ({ ...prev, timeSlot }));
+  const handleTimeSelect = (time) => {
+    setBookingData(prev => ({ ...prev, time }));
     if (currentStep === 5) goToNextStep();
   };
 
@@ -238,16 +435,33 @@ const Booking = () => {
       case 1:
         return !!bookingData.animalId;
       case 2:
-        return !!bookingData.reason;
+        return !!bookingData.service;
       case 3:
         return !!bookingData.specialization;
       case 4:
         return !!bookingData.vetId;
       case 5:
-        return !!bookingData.date && !!bookingData.timeSlot;
+        return !!bookingData.date && !!bookingData.time;
       default:
         return true;
     }
+  };
+
+  // Рассчитать стоимость
+  const calculatePrice = (service) => {
+    const prices = {
+      'Плановый осмотр': 1500,
+      'Вакцинация': 1200,
+      'Кожные проблемы': 2000,
+      'Рана/травма': 2500,
+      'Перелом': 5000,
+      'Проблемы с зубами': 3000,
+      'Заболевания глаз': 2200,
+      'Проблемы с ушами': 1800,
+      'Пищеварение': 1700,
+      'Другое': 1000
+    };
+    return prices[service] || 1000;
   };
 
   // Отправка формы
@@ -255,22 +469,70 @@ const Booking = () => {
     setIsSubmitting(true);
     
     try {
-      // Имитация запроса
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log('Данные записи:', bookingData);
-      alert('Запись успешно создана! С вами свяжутся для подтверждения.');
+      const appointmentData = {
+        animal: bookingData.animalId,
+        vet: bookingData.vetId,
+        service: bookingData.service,
+        date: bookingData.date,
+        time: bookingData.time,
+        notes: bookingData.notes,
+        emergency: bookingData.emergency,
+        price: calculatePrice(bookingData.service),
+      };
+
+      if (bookingData.symptoms.length > 0) {
+        appointmentData.notes = `Симптомы: ${bookingData.symptoms.join(', ')}. ${appointmentData.notes || ''}`;
+      }
+
+      const response = await apiRequest('/appointments', {
+        method: 'POST',
+        body: JSON.stringify(appointmentData)
+      });
+
+      alert('Запись успешно создана!');
       navigate('/appointments');
+      
     } catch (error) {
-      console.error('Ошибка:', error);
-      alert('Произошла ошибка. Попробуйте еще раз.');
+      console.error('Ошибка создания записи:', error);
+      alert(`Ошибка при создании записи: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Форматирование времени
+  const formatTimeRange = (schedule) => {
+    if (!schedule || !schedule.isWorking) return 'Выходной';
+    return `${schedule.startTime || '09:00'} - ${schedule.endTime || '18:00'}`;
+  };
+
   // Рендер шагов
   const renderStepContent = () => {
+    if (isLoading) {
+      return (
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Загрузка данных...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="error-state">
+          <div className="error-icon">❌</div>
+          <h3>Ошибка загрузки данных</h3>
+          <p>{error}</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => window.location.reload()}
+          >
+            Обновить страницу
+          </button>
+        </div>
+      );
+    }
+
     switch (currentStep) {
       case 1:
         return renderStep1();
@@ -297,36 +559,56 @@ const Booking = () => {
         <p>Для кого вы хотите записаться на прием?</p>
       </div>
       
-      <div className="animals-grid">
-        {userAnimals.map(animal => (
-          <div 
-            key={animal.id}
-            className={`animal-card ${bookingData.animalId === animal.id ? 'selected' : ''}`}
-            onClick={() => handleAnimalSelect(animal.id)}
+      {userAnimals.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🐾</div>
+          <h3>У вас нет животных</h3>
+          <p>Добавьте животное, чтобы записаться на прием</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => navigate('/animals')}
           >
-            <div className="animal-avatar">{animal.avatar}</div>
+            Добавить животное
+          </button>
+        </div>
+      ) : (
+        <div className="animals-grid">
+          {userAnimals.map(animal => (
+            <div 
+              key={animal._id}
+              className={`animal-card ${bookingData.animalId === animal._id ? 'selected' : ''}`}
+              onClick={() => handleAnimalSelect(animal._id)}
+            >
+              <div className="animal-avatar">
+                {animal.type === 'Кот' ? '🐱' : 
+                 animal.type === 'Собака' ? '🐕' : 
+                 animal.type === 'Попугай' ? '🐦' : '🐾'}
+              </div>
+              <div className="animal-info">
+                <h3>{animal.name}</h3>
+                <p>{animal.type} • {animal.breed || 'Порода не указана'}</p>
+                <p className="animal-age">
+                  {animal.age?.years || 0} лет {animal.age?.months || 0} мес.
+                </p>
+              </div>
+              <div className="animal-check">
+                {bookingData.animalId === animal._id && '✓'}
+              </div>
+            </div>
+          ))}
+          
+          <div 
+            className="animal-card add-animal"
+            onClick={() => navigate('/animals')}
+          >
+            <div className="animal-avatar">+</div>
             <div className="animal-info">
-              <h3>{animal.name}</h3>
-              <p>{animal.type} • {animal.breed}</p>
-              <p className="animal-age">{animal.age}</p>
+              <h3>Добавить животное</h3>
+              <p>Создать новую карточку питомца</p>
             </div>
-            <div className="animal-check">
-              {bookingData.animalId === animal.id && '✓'}
-            </div>
-          </div>
-        ))}
-        
-        <div 
-          className="animal-card add-animal"
-          onClick={() => navigate('/animals')}
-        >
-          <div className="animal-avatar">+</div>
-          <div className="animal-info">
-            <h3>Добавить животное</h3>
-            <p>Создать новую карточку питомца</p>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
@@ -342,18 +624,18 @@ const Booking = () => {
         {reasons.map(reason => (
           <div 
             key={reason.id}
-            className={`reason-card ${bookingData.reason === reason.id ? 'selected' : ''}`}
+            className={`reason-card ${bookingData.service === reason.label ? 'selected' : ''}`}
             onClick={() => handleReasonSelect(reason.id)}
           >
             <div className="reason-content">
               <h3>{reason.label}</h3>
+              <p className="reason-price">~ {calculatePrice(reason.label)} ₽</p>
             </div>
           </div>
         ))}
       </div>
       
-      {/* Дополнительные симптомы */}
-      {bookingData.reason && (
+      {bookingData.service && (
         <div className="symptoms-section">
           <h3>Дополнительные симптомы</h3>
           <p>Отметьте все, что наблюдается у питомца</p>
@@ -400,7 +682,7 @@ const Booking = () => {
 
   // Шаг 3: Автовыбор специалиста
   const renderStep3 = () => {
-    const selectedReason = reasons.find(r => r.id === bookingData.reason);
+    const selectedReason = reasons.find(r => r.label === bookingData.service);
     const specialization = specializations.find(s => s.id === bookingData.specialization);
     
     return (
@@ -423,11 +705,11 @@ const Booking = () => {
           
           <div className="specialist-description">
             <p>
-              {specialization?.id === 'surgeon' && 'Хирург занимается оперативным лечением травм, переломов и проведением плановых операций.'}
-              {specialization?.id === 'ophthalmologist' && 'Офтальмолог специализируется на диагностике и лечении заболеваний глаз.'}
-              {specialization?.id === 'dentist' && 'Ветеринарный стоматолог лечит заболевания зубов и полости рта.'}
-              {specialization?.id === 'dermatologist' && 'Дерматолог занимается кожными заболеваниями, аллергиями и проблемами с шерстью.'}
-              {(!specialization || specialization.id === 'therapist') && 'Терапевт — врач общей практики, который проведет первичный осмотр и при необходимости направит к узкому специалисту.'}
+              {specialization?.id === 'Хирург' && 'Хирург занимается оперативным лечением травм, переломов и проведением плановых операций.'}
+              {specialization?.id === 'Офтальмолог' && 'Офтальмолог специализируется на диагностике и лечении заболеваний глаз.'}
+              {specialization?.id === 'Стоматолог' && 'Ветеринарный стоматолог лечит заболевания зубов и полости рта.'}
+              {specialization?.id === 'Дерматолог' && 'Дерматолог занимается кожными заболеваниями, аллергиями и проблемами с шерстью.'}
+              {(!specialization || specialization.id === 'Терапевт') && 'Терапевт — врач общей практики, который проведет первичный осмотр и при необходимости направит к узкому специалисту.'}
             </p>
           </div>
         </div>
@@ -448,84 +730,169 @@ const Booking = () => {
         <p>Доступные специалисты {specializations.find(s => s.id === bookingData.specialization)?.label?.toLowerCase()}</p>
       </div>
       
-      <div className="vets-grid">
-        {filteredVets.map(vet => (
-          <div 
-            key={vet.id}
-            className={`vet-card ${bookingData.vetId === vet.id ? 'selected' : ''}`}
-            onClick={() => handleVetSelect(vet.id)}
-          >
-            <div className="vet-header">
-              <div className="vet-avatar">{vet.avatar}</div>
-              <div className="vet-info">
-                <h3>{vet.name}</h3>
-                <p>{vet.description}</p>
-              </div>
-            </div>
+      {filteredVets.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">👨‍⚕️</div>
+          <h3>Нет доступных ветеринаров</h3>
+          <p>Выберите другую специализацию или обратитесь в регистратуру</p>
+        </div>
+      ) : (
+        <div className="vets-grid">
+          {filteredVets.map(vet => {
+            const isSelected = bookingData.vetId === vet._id;
             
-            <div className="vet-details">
-              <div className="vet-detail">
-                <span className="detail-label">Стаж:</span>
-                <span className="detail-value">{vet.experience} лет</span>
+            return (
+              <div 
+                key={vet._id}
+                className={`vet-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => handleVetSelect(vet._id)}
+              >
+                <div className="vet-header">
+                  <div className="vet-avatar">
+                    {vet.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
+                  </div>
+                  <div className="vet-info">
+                    <h3>{vet.name}</h3>
+                    <p className="vet-specialization">{vet.specialization}</p>
+                    <p className="vet-bio">{vet.bio || 'Опытный специалист'}</p>
+                  </div>
+                  <div className="vet-rating">
+                    <span className="rating-star">★</span>
+                    <span className="rating-value">{vet.rating || 4.8}</span>
+                  </div>
+                </div>
+                
+                <div className="vet-details">
+                  <div className="vet-detail">
+                    <span className="detail-label">Стаж:</span>
+                    <span className="detail-value">{vet.experience || 0} лет</span>
+                  </div>
+                  <div className="vet-detail">
+                    <span className="detail-label">Длительность приема:</span>
+                    <span className="detail-value">{vet.slotDuration || 30} минут</span>
+                  </div>
+                  <div className="vet-detail">
+                    <span className="detail-label">Стоимость приема:</span>
+                    <span className="detail-value">{vet.price || calculatePrice(bookingData.service)} ₽</span>
+                  </div>
+                </div>
+                
+                {/* Расписание ветеринара */}
+                <div className="vet-schedule">
+                  <h4>Рабочее расписание:</h4>
+                  <div className="schedule-grid">
+                    {vet.schedule && Object.entries(vet.schedule).map(([day, schedule]) => {
+                      if (!['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].includes(day)) return null;
+                      
+                      const dayNames = {
+                        monday: 'Пн',
+                        tuesday: 'Вт',
+                        wednesday: 'Ср',
+                        thursday: 'Чт',
+                        friday: 'Пт',
+                        saturday: 'Сб',
+                        sunday: 'Вс'
+                      };
+                      
+                      return (
+                        <div key={day} className="schedule-day">
+                          <span className="day-label">{dayNames[day]}:</span>
+                          <span className={`day-time ${schedule.isWorking ? 'working' : 'day-off'}`}>
+                            {schedule.isWorking ? formatTimeRange(schedule) : 'Выходной'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                <div className="vet-check">
+                  {isSelected && (
+                    <>
+                      <span className="check-icon">✓</span>
+                      <span>Выбран</span>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="vet-detail">
-                <span className="detail-label">Рейтинг:</span>
-                <span className="detail-value">{vet.rating} ★</span>
-              </div>
-              <div className="vet-detail">
-                <span className="detail-label">Специализация:</span>
-                <span className="detail-value">
-                  {vet.specialization.map(s => specializations.find(sp => sp.id === s)?.label).join(', ')}
-                </span>
-              </div>
-            </div>
-            
-            <div className="vet-availability">
-              <p>Примерное время приема:</p>
-              <div className="time-slots">
-                {vet.availableSlots.map(slot => (
-                  <span key={slot} className="time-slot">{slot}</span>
-                ))}
-              </div>
-            </div>
-            
-            <div className="vet-check">
-              {bookingData.vetId === vet.id && '✓ Выбран'}
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
   // Шаг 5: Выбор даты и времени
   const renderStep5 = () => {
-    const selectedVet = vets.find(v => v.id === bookingData.vetId);
+    const selectedVet = vets.find(v => v._id === bookingData.vetId);
     
     return (
       <div className="step-content">
         <div className="step-header">
           <h2>Выберите дату и время</h2>
-          <p>Доступные слоты для {selectedVet?.name}</p>
+          <p>Доступные слоты для {selectedVet?.name || 'ветеринара'}</p>
+          {selectedVet && (
+            <div className="vet-info-summary">
+              <p className="vet-schedule-note">
+                Рабочие дни врача: {Object.entries(selectedVet.schedule || {})
+                  .filter(([_, schedule]) => schedule?.isWorking)
+                  .map(([day, _]) => {
+                    const dayNames = {
+                      monday: 'Пн',
+                      tuesday: 'Вт', 
+                      wednesday: 'Ср',
+                      thursday: 'Чт',
+                      friday: 'Пт',
+                      saturday: 'Сб',
+                      sunday: 'Вс'
+                    };
+                    return dayNames[day];
+                  })
+                  .join(', ')
+                }
+              </p>
+            </div>
+          )}
         </div>
         
         <div className="date-time-section">
           {/* Календарь дат */}
           <div className="dates-section">
             <h3>Выберите дату</h3>
+            <p className="schedule-note">
+              Доступные дни для записи (рабочие дни врача)
+            </p>
             <div className="dates-grid">
-              {availableDates.map(date => (
-                <div 
-                  key={date.id}
-                  className={`date-card ${bookingData.date === date.id ? 'selected' : ''} ${!date.available ? 'unavailable' : ''}`}
-                  onClick={() => date.available && handleDateSelect(date.id)}
-                >
-                  <div className="date-day">{date.day}</div>
-                  <div className="date-number">{date.number}</div>
-                  <div className="date-month">{date.month}</div>
-                  {!date.available && <div className="date-unavailable">Нет слотов</div>}
-                </div>
-              ))}
+              {availableDates.map(date => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isPast = date.date < today;
+                const isWorking = selectedVet ? isVetWorkingOnDate(selectedVet, date.date) : true;
+                const isAvailable = !isPast && isWorking;
+                const isSelected = bookingData.date === date.id;
+                
+                return (
+                  <div 
+                    key={date.id}
+                    className={`date-card ${isSelected ? 'selected' : ''} ${isAvailable ? 'available' : 'unavailable'}`}
+                    onClick={() => isAvailable && handleDateSelect(date.id)}
+                    title={
+                      isPast ? 'Прошедшая дата' : 
+                      !isWorking ? 'Ветеринар не работает в этот день' : 
+                      'Доступно для записи'
+                    }
+                  >
+                    <div className="date-day">{date.day}</div>
+                    <div className="date-number">{date.number}</div>
+                    <div className="date-month">{date.month}</div>
+                    {!isAvailable && <div className="date-unavailable">✗</div>}
+                    {isSelected && <div className="date-selected">✓</div>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="dates-info">
+              <p>Пн-Пт: рабочие дни, Сб-Вс: выходные (по умолчанию)</p>
             </div>
           </div>
           
@@ -533,22 +900,50 @@ const Booking = () => {
           {bookingData.date && (
             <div className="times-section">
               <h3>Выберите время</h3>
-              <div className="times-grid">
-                {availableTimeSlots.map(slot => (
-                  <div 
-                    key={slot}
-                    className={`time-card ${bookingData.timeSlot === slot ? 'selected' : ''}`}
-                    onClick={() => handleTimeSelect(slot)}
-                  >
-                    {slot}
+              {availableTimeSlots.length === 0 ? (
+                <div className="empty-slots">
+                  <p>❌ Нет доступных слотов на эту дату</p>
+                  <p>Ветеринар не работает или все слоты заняты</p>
+                </div>
+              ) : (
+                <>
+                  <div className="times-grid">
+                    {availableTimeSlots.map(slot => {
+                      const isBusy = busySlots.includes(slot.time);
+                      const isSelected = bookingData.time === slot.time;
+                      const isAvailable = !isBusy && slot.isAvailable;
+                      
+                      return (
+                        <div 
+                          key={slot.time}
+                          className={`time-card ${isSelected ? 'selected' : ''} ${isBusy ? 'busy' : 'available'}`}
+                          onClick={() => isAvailable && handleTimeSelect(slot.time)}
+                          title={isBusy ? 'Это время уже занято' : 'Доступно для записи'}
+                        >
+                          {slot.time}
+                          {isBusy && <span className="busy-icon">⛔</span>}
+                          {isSelected && <span className="selected-icon">✓</span>}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                  <div className="time-legend">
+                    <div className="legend-item">
+                      <span className="legend-color available"></span>
+                      <span>Доступно</span>
+                    </div>
+                    <div className="legend-item">
+                      <span className="legend-color busy"></span>
+                      <span>Занято</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
         
-        {bookingData.date && bookingData.timeSlot && (
+        {bookingData.date && bookingData.time && (
           <div className="selected-slot">
             <h3>Выбранное время:</h3>
             <p className="slot-info">
@@ -556,7 +951,7 @@ const Booking = () => {
                 weekday: 'long', 
                 day: 'numeric', 
                 month: 'long' 
-              })} в {bookingData.timeSlot}
+              })} в {bookingData.time}
             </p>
           </div>
         )}
@@ -566,10 +961,11 @@ const Booking = () => {
 
   // Шаг 6: Подтверждение
   const renderStep6 = () => {
-    const selectedAnimal = userAnimals.find(a => a.id === bookingData.animalId);
-    const selectedReason = reasons.find(r => r.id === bookingData.reason);
+    const selectedAnimal = userAnimals.find(a => a._id === bookingData.animalId);
+    const selectedReason = reasons.find(r => r.label === bookingData.service);
     const selectedSpecialization = specializations.find(s => s.id === bookingData.specialization);
-    const selectedVet = vets.find(v => v.id === bookingData.vetId);
+    const selectedVet = vets.find(v => v._id === bookingData.vetId);
+    const price = calculatePrice(bookingData.service);
     
     return (
       <div className="step-content">
@@ -586,7 +982,17 @@ const Booking = () => {
               <div className="confirmation-item">
                 <span className="item-label">Питомец:</span>
                 <span className="item-value">
-                  {selectedAnimal?.avatar} {selectedAnimal?.name} ({selectedAnimal?.type})
+                  {selectedAnimal?.name} ({selectedAnimal?.type})
+                </span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Порода:</span>
+                <span className="item-value">{selectedAnimal?.breed || 'Не указана'}</span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Возраст:</span>
+                <span className="item-value">
+                  {selectedAnimal?.age?.years || 0} лет {selectedAnimal?.age?.months || 0} мес.
                 </span>
               </div>
             </div>
@@ -603,7 +1009,7 @@ const Booking = () => {
             <h3>Причина обращения</h3>
             <div className="confirmation-content">
               <div className="confirmation-item">
-                <span className="item-label">Причина:</span>
+                <span className="item-label">Услуга:</span>
                 <span className="item-value">{selectedReason?.label}</span>
               </div>
               {bookingData.symptoms.length > 0 && (
@@ -644,9 +1050,15 @@ const Booking = () => {
               </div>
               <div className="confirmation-item">
                 <span className="item-label">Ветеринар:</span>
-                <span className="item-value">
-                  {selectedVet?.avatar} {selectedVet?.name}
-                </span>
+                <span className="item-value">{selectedVet?.name}</span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Стаж:</span>
+                <span className="item-value">{selectedVet?.experience || 0} лет</span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Стоимость приема:</span>
+                <span className="item-value">{selectedVet?.price || price} ₽</span>
               </div>
             </div>
             <button 
@@ -657,7 +1069,7 @@ const Booking = () => {
             </button>
           </div>
           
-          {/* Время */}
+          {/* Время и стоимость */}
           <div className="confirmation-card">
             <h3>Время приема</h3>
             <div className="confirmation-content">
@@ -668,8 +1080,16 @@ const Booking = () => {
                     weekday: 'long', 
                     day: 'numeric', 
                     month: 'long' 
-                  })} в {bookingData.timeSlot}
+                  })} в {bookingData.time}
                 </span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Длительность:</span>
+                <span className="item-value">{selectedVet?.slotDuration || 30} минут</span>
+              </div>
+              <div className="confirmation-item">
+                <span className="item-label">Стоимость:</span>
+                <span className="item-value price">{price} ₽</span>
               </div>
             </div>
             <button 
@@ -685,7 +1105,7 @@ const Booking = () => {
         <div className="additional-info">
           <h3>Дополнительная информация</h3>
           <div className="form-group">
-            <label>Есть что добавить? (необязательно)</label>
+            <label>Еще что-то добавить? (необязательно)</label>
             <textarea 
               className="form-textarea"
               placeholder="Укажите дополнительную информацию, которая может быть полезна врачу..."
@@ -700,6 +1120,7 @@ const Booking = () => {
               <input 
                 type="checkbox" 
                 required
+                defaultChecked={false}
               />
               <span className="checkbox-custom"></span>
               <span className="checkbox-text">
@@ -712,6 +1133,7 @@ const Booking = () => {
             <label className="checkbox-label">
               <input 
                 type="checkbox" 
+                defaultChecked={true}
               />
               <span className="checkbox-custom"></span>
               <span className="checkbox-text">
@@ -794,7 +1216,7 @@ const Booking = () => {
                   Оформление...
                 </>
               ) : (
-                '✅ Подтвердить запись'
+                `✅ Подтвердить запись (${calculatePrice(bookingData.service)} ₽)`
               )}
             </button>
           )}
@@ -806,15 +1228,15 @@ const Booking = () => {
             <div className="selection-item">
               <span className="selection-label">Животное:</span>
               <span className="selection-value">
-                {selectedAnimal.avatar} {selectedAnimal.name}
+                {selectedAnimal.name}
               </span>
             </div>
             
-            {bookingData.reason && (
+            {bookingData.service && (
               <div className="selection-item">
-                <span className="selection-label">Причина:</span>
+                <span className="selection-label">Услуга:</span>
                 <span className="selection-value">
-                  {reasons.find(r => r.id === bookingData.reason)?.label}
+                  {bookingData.service}
                 </span>
               </div>
             )}
@@ -832,16 +1254,16 @@ const Booking = () => {
               <div className="selection-item">
                 <span className="selection-label">Врач:</span>
                 <span className="selection-value">
-                  {vets.find(v => v.id === bookingData.vetId)?.name}
+                  {vets.find(v => v._id === bookingData.vetId)?.name}
                 </span>
               </div>
             )}
             
-            {bookingData.date && bookingData.timeSlot && (
+            {bookingData.date && bookingData.time && (
               <div className="selection-item">
                 <span className="selection-label">Время:</span>
                 <span className="selection-value">
-                  {new Date(bookingData.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в {bookingData.timeSlot}
+                  {new Date(bookingData.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в {bookingData.time}
                 </span>
               </div>
             )}

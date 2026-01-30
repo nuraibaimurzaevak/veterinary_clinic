@@ -159,54 +159,6 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-
-      {/* Отзывы */}
-      <section className="testimonials-section">
-        <div className="container">
-          <h2 className="section-title">Отзывы клиентов</h2>
-          <div className="testimonials">
-            <div className="testimonial-card">
-              <p className="testimonial-text">
-                "Отличная клиника! Лечили здесь кота от мочекаменной болезни. 
-                Врачи внимательные, оборудование современное. Кот быстро поправился!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">👤</div>
-                <div className="author-info">
-                  <h4>Марина С.</h4>
-                  <span>владелица кота Барсика</span>
-                </div>
-              </div>
-            </div>
-            <div className="testimonial-card">
-              <p className="testimonial-text">
-                "Очень удобная система записи онлайн. Не нужно ждать в очереди. 
-                Все анализы и история хранятся в личном кабинете. Рекомендую!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">👤</div>
-                <div className="author-info">
-                  <h4>Алексей П.</h4>
-                  <span>владелец собаки Рекса</span>
-                </div>
-              </div>
-            </div>
-            <div className="testimonial-card">
-              <p className="testimonial-text">
-                "Делали операцию собаке. Хирурги настоящие профессионалы! 
-                Послеоперационный уход на высшем уровне. Спасибо всему персоналу!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">👤</div>
-                <div className="author-info">
-                  <h4>Ольга К.</h4>
-                  <span>владелица собаки Джесси</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };

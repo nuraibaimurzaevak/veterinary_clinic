@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../../components/layout/Header/Header';
 import './AppointmentPage.css';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Appointments = () => {
   const navigate = useNavigate();
@@ -14,176 +15,302 @@ const Appointments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState('');
+  const [stats, setStats] = useState({
+    total: 0,
+    upcoming: 0,
+    completed: 0,
+    cancelled: 0,
+    today: 0
+  });
 
-  // Моковые данные записей
-  const mockAppointments = [
-    {
-      id: '1',
-      petName: 'Барсик',
-      petType: 'Кот',
-      vetName: 'Петрова Анна Сергеевна',
-      specialization: 'Терапевт',
-      date: '2024-02-15',
-      time: '10:30',
-      status: 'upcoming', // upcoming, completed, cancelled
-      reason: 'Плановый осмотр',
-      symptoms: ['Вялость', 'Отказ от еды'],
-      diagnosis: '',
-      treatment: '',
-      price: 2500,
-      duration: 30,
-      notes: 'Принести предыдущие анализы',
-      createdAt: '2024-02-10T14:30:00Z'
-    },
-    {
-      id: '2',
-      petName: 'Рекс',
-      petType: 'Собака',
-      vetName: 'Сидоров Дмитрий Алексеевич',
-      specialization: 'Хирург',
-      date: '2024-02-20',
-      time: '14:00',
-      status: 'upcoming',
-      reason: 'Швы после операции',
-      symptoms: ['Осмотр швов'],
-      diagnosis: '',
-      treatment: '',
-      price: 1800,
-      duration: 20,
-      notes: 'Не мочить швы',
-      createdAt: '2024-02-12T09:15:00Z'
-    },
-    {
-      id: '3',
-      petName: 'Кеша',
-      petType: 'Попугай',
-      vetName: 'Кузнецова Елена Владимировна',
-      specialization: 'Офтальмолог',
-      date: '2024-02-10',
-      time: '11:15',
-      status: 'completed',
-      reason: 'Проблемы с глазами',
-      symptoms: ['Покраснение глаз', 'Слезотечение'],
-      diagnosis: 'Конъюнктивит',
-      treatment: 'Глазные капли 3 раза в день, курс 7 дней',
-      price: 3200,
-      duration: 45,
-      notes: 'Повторный осмотр через неделю',
-      createdAt: '2024-02-05T16:45:00Z'
-    },
-    {
-      id: '4',
-      petName: 'Мурка',
-      petType: 'Кошка',
-      vetName: 'Иванова Ольга Михайловна',
-      specialization: 'Стоматолог',
-      date: '2024-02-05',
-      time: '09:00',
-      status: 'cancelled',
-      reason: 'Чистка зубов',
-      symptoms: ['Зубной камень'],
-      diagnosis: '',
-      treatment: '',
-      price: 4500,
-      duration: 60,
-      notes: 'Отменено по инициативе клиента',
-      cancelReason: 'Питомец заболел',
-      createdAt: '2024-01-30T11:20:00Z',
-      cancelledAt: '2024-02-03T15:30:00Z'
-    },
-    {
-      id: '5',
-      petName: 'Шарик',
-      petType: 'Собака',
-      vetName: 'Петрова Анна Сергеевна',
-      specialization: 'Терапевт',
-      date: '2024-02-25',
-      time: '15:30',
-      status: 'upcoming',
-      reason: 'Вакцинация',
-      symptoms: ['Плановая прививка'],
-      diagnosis: '',
-      treatment: '',
-      price: 1500,
-      duration: 15,
-      notes: 'Перед вакцинацией не кормить 4 часа',
-      createdAt: '2024-02-18T13:10:00Z'
+  // Получение текущего пользователя
+  const getCurrentUser = () => {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  };
+
+  // Получение токена
+  const getAuthToken = () => {
+    return localStorage.getItem('token');
+  };
+
+  // API запрос с использованием fetch
+  const apiRequest = async (endpoint, options = {}) => {
+    const token = getAuthToken();
+    const user = getCurrentUser();
+    
+    if (!user || !token) {
+      navigate('/login');
+      throw new Error('Требуется авторизация');
     }
-  ];
 
-  // Загрузка данных
-  useEffect(() => {
-    const loadAppointments = async () => {
-      setIsLoading(true);
-      try {
-        // Имитация загрузки
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setAppointments(mockAppointments);
-      } catch (error) {
-        console.error('Ошибка загрузки записей:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    const defaultOptions = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      ...options
     };
 
-    loadAppointments();
+    try {
+      console.log(`Отправка запроса на: ${API_BASE_URL}${endpoint}`);
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, defaultOptions);
+      
+      if (response.status === 401) {
+        localStorage.clear();
+        navigate('/login');
+        throw new Error('Сессия истекла');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  };
+
+  // Загрузка записей
+  const loadAppointments = async () => {
+    setIsLoading(true);
+    try {
+      const user = getCurrentUser();
+      if (!user) {
+        console.log('Пользователь не найден');
+        navigate('/login');
+        return;
+      }
+
+      console.log('Загрузка записей для пользователя:', user.id);
+      
+      // Используем правильный эндпоинт
+      const data = await apiRequest('/appointments/user');
+      
+      console.log('Получены записи:', data);
+      
+      if (data && Array.isArray(data)) {
+        setAppointments(data);
+        
+        // Рассчитываем статистику
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        setStats({
+          total: data.length,
+          upcoming: data.filter(a => 
+            (a.status === 'pending' || a.status === 'confirmed') && 
+            new Date(a.date) >= today
+          ).length,
+          completed: data.filter(a => a.status === 'completed').length,
+          cancelled: data.filter(a => a.status === 'cancelled').length,
+          today: data.filter(a => {
+            const appointmentDate = new Date(a.date);
+            return appointmentDate.toDateString() === today.toDateString();
+          }).length
+        });
+      } else {
+        console.error('Неверный формат ответа:', data);
+        setAppointments([]);
+      }
+      
+    } catch (error) {
+      console.error('Ошибка загрузки записей:', error.message);
+      // Используем моковые данные для тестирования
+      loadMockData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Моковые данные для тестирования
+  const loadMockData = () => {
+    console.log('Загрузка моковых данных...');
+    const mockAppointments = [
+      {
+        _id: '1',
+        animal: {
+          _id: '1',
+          name: 'Барсик',
+          type: 'Кот',
+          breed: 'Британская'
+        },
+        vet: {
+          _id: '1',
+          name: 'Петрова Анна Сергеевна',
+          specialization: 'Терапевт'
+        },
+        service: 'Плановый осмотр',
+        date: '2024-02-15T00:00:00.000Z',
+        time: '10:30',
+        status: 'confirmed',
+        notes: 'Принести предыдущие анализы',
+        price: 2500,
+        createdAt: '2024-02-10T14:30:00.000Z'
+      },
+      {
+        _id: '2',
+        animal: {
+          _id: '2',
+          name: 'Рекс',
+          type: 'Собака',
+          breed: 'Немецкая овчарка'
+        },
+        vet: {
+          _id: '2',
+          name: 'Сидоров Дмитрий Алексеевич',
+          specialization: 'Хирург'
+        },
+        service: 'Швы после операции',
+        date: '2024-02-20T00:00:00.000Z',
+        time: '14:00',
+        status: 'confirmed',
+        notes: 'Не мочить швы',
+        price: 1800,
+        createdAt: '2024-02-12T09:15:00.000Z'
+      },
+      {
+        _id: '3',
+        animal: {
+          _id: '3',
+          name: 'Кеша',
+          type: 'Попугай',
+          breed: 'Волнистый'
+        },
+        vet: {
+          _id: '3',
+          name: 'Кузнецова Елена Владимировна',
+          specialization: 'Офтальмолог'
+        },
+        service: 'Проблемы с глазами',
+        date: '2024-02-10T00:00:00.000Z',
+        time: '11:15',
+        status: 'completed',
+        notes: 'Повторный осмотр через неделю',
+        price: 3200,
+        createdAt: '2024-02-05T16:45:00.000Z'
+      },
+      {
+        _id: '4',
+        animal: {
+          _id: '4',
+          name: 'Мурка',
+          type: 'Кошка',
+          breed: 'Дворовая'
+        },
+        vet: {
+          _id: '4',
+          name: 'Иванова Ольга Михайловна',
+          specialization: 'Стоматолог'
+        },
+        service: 'Чистка зубов',
+        date: '2024-02-05T00:00:00.000Z',
+        time: '09:00',
+        status: 'cancelled',
+        notes: 'Отменено по инициативе клиента',
+        price: 4500,
+        createdAt: '2024-01-30T11:20:00.000Z'
+      }
+    ];
+    
+    setAppointments(mockAppointments);
+    
+    // Рассчитываем статистику для моковых данных
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    setStats({
+      total: mockAppointments.length,
+      upcoming: mockAppointments.filter(a => 
+        (a.status === 'pending' || a.status === 'confirmed') && 
+        new Date(a.date) >= today
+      ).length,
+      completed: mockAppointments.filter(a => a.status === 'completed').length,
+      cancelled: mockAppointments.filter(a => a.status === 'cancelled').length,
+      today: mockAppointments.filter(a => {
+        const appointmentDate = new Date(a.date);
+        return appointmentDate.toDateString() === today.toDateString();
+      }).length
+    });
+  };
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) {
+      console.log('Перенаправление на страницу входа...');
+      navigate('/login');
+    } else {
+      console.log('Пользователь найден, загрузка записей...');
+      loadAppointments();
+    }
   }, []);
 
   // Фильтрация записей
   const filteredAppointments = appointments.filter(appointment => {
     // Фильтр по вкладке
-    if (activeTab === 'upcoming' && appointment.status !== 'upcoming') return false;
-    if (activeTab === 'past' && appointment.status === 'upcoming') return false;
+    const isUpcoming = appointment.status === 'pending' || appointment.status === 'confirmed';
+    const isPast = appointment.status === 'completed' || appointment.status === 'cancelled';
+    
+    if (activeTab === 'upcoming' && !isUpcoming) return false;
+    if (activeTab === 'past' && !isPast) return false;
     
     // Фильтр по статусу
     if (filterStatus !== 'all' && appointment.status !== filterStatus) return false;
     
     // Фильтр по дате
-    if (filterDate && appointment.date !== filterDate) return false;
+    if (filterDate) {
+      const appointmentDate = new Date(appointment.date).toISOString().split('T')[0];
+      if (appointmentDate !== filterDate) return false;
+    }
     
     // Поиск
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      const animalName = appointment.animal?.name?.toLowerCase() || '';
+      const vetName = appointment.vet?.name?.toLowerCase() || '';
+      const service = appointment.service?.toLowerCase() || '';
+      const specialization = appointment.vet?.specialization?.toLowerCase() || '';
+      
       return (
-        appointment.petName.toLowerCase().includes(term) ||
-        appointment.vetName.toLowerCase().includes(term) ||
-        appointment.reason.toLowerCase().includes(term) ||
-        appointment.specialization.toLowerCase().includes(term)
+        animalName.includes(term) ||
+        vetName.includes(term) ||
+        service.includes(term) ||
+        specialization.includes(term)
       );
     }
     
     return true;
   });
 
-  // Статистика
-  const stats = {
-    total: appointments.length,
-    upcoming: appointments.filter(a => a.status === 'upcoming').length,
-    completed: appointments.filter(a => a.status === 'completed').length,
-    cancelled: appointments.filter(a => a.status === 'cancelled').length,
-  };
-
   // Форматирование даты
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ru-RU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Неверная дата';
+      
+      return date.toLocaleDateString('ru-RU', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error('Ошибка форматирования даты:', error);
+      return 'Неверная дата';
+    }
   };
 
-  // Форматирование времени
-  const formatTime = (timeStr) => {
-    return timeStr;
-  };
-
-  // Получение статуса
+  // Получение информации о статусе
   const getStatusInfo = (status) => {
     switch (status) {
-      case 'upcoming':
-        return { label: 'Предстоящий', color: '#4299E1', icon: '⏰' };
+      case 'pending':
+        return { label: 'Ожидание', color: '#ED8936', icon: '⏳' };
+      case 'confirmed':
+        return { label: 'Подтвержден', color: '#4299E1', icon: '✓' };
       case 'completed':
         return { label: 'Завершен', color: '#48BB78', icon: '✅' };
       case 'cancelled':
@@ -193,45 +320,79 @@ const Appointments = () => {
     }
   };
 
-  // Открытие деталей записи
-  const handleViewDetails = (appointment) => {
-    setSelectedAppointment(appointment);
-  };
+  // Отмена записи через API
+  const handleCancelAppointment = async (appointmentId) => {
+    try {
+      await apiRequest(`/appointments/${appointmentId}/cancel`, {
+        method: 'PUT'
+      });
 
-  // Закрытие деталей
-  const handleCloseDetails = () => {
-    setSelectedAppointment(null);
-  };
-
-  // Отмена записи
-  const handleCancelClick = (appointment) => {
-    setSelectedAppointment(appointment);
-    setShowCancelModal(true);
-    setCancelReason('');
+      // Обновляем локальное состояние
+      setAppointments(prev => prev.map(app => 
+        app._id === appointmentId 
+          ? { ...app, status: 'cancelled' }
+          : app
+      ));
+      
+      // Обновляем статистику
+      loadAppointments();
+      
+      return true;
+    } catch (error) {
+      console.error('Ошибка отмены записи:', error);
+      throw error;
+    }
   };
 
   // Подтверждение отмены
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
     if (!cancelReason.trim()) {
       alert('Пожалуйста, укажите причину отмены');
       return;
     }
 
-    setAppointments(prev => prev.map(app => 
-      app.id === selectedAppointment.id 
-        ? { 
-            ...app, 
-            status: 'cancelled',
-            cancelReason: cancelReason,
-            cancelledAt: new Date().toISOString()
-          }
-        : app
-    ));
+    try {
+      await handleCancelAppointment(selectedAppointment._id);
+      
+      setShowCancelModal(false);
+      setCancelReason('');
+      setSelectedAppointment(null);
+      
+      alert('Запись успешно отменена');
+    } catch (error) {
+      alert('Ошибка при отмене записи');
+    }
+  };
 
-    setShowCancelModal(false);
-    setCancelReason('');
-    setSelectedAppointment(null);
-    alert('Запись успешно отменена');
+  // Удаление записи
+  const handleDeleteAppointment = async (appointmentId) => {
+    if (!window.confirm('Вы уверены, что хотите удалить эту запись?')) {
+      return;
+    }
+
+    try {
+      // Проверяем права пользователя
+      const user = getCurrentUser();
+      if (user.role !== 'admin') {
+        alert('Только администратор может удалять записи');
+        return;
+      }
+
+      await apiRequest(`/appointments/${appointmentId}`, {
+        method: 'DELETE'
+      });
+      
+      // Обновляем локальное состояние
+      setAppointments(prev => prev.filter(app => app._id !== appointmentId));
+      
+      // Обновляем статистику
+      loadAppointments();
+      
+      alert('Запись успешно удалена');
+    } catch (error) {
+      console.error('Ошибка удаления записи:', error);
+      alert('Ошибка при удалении записи');
+    }
   };
 
   // Создание новой записи
@@ -239,47 +400,48 @@ const Appointments = () => {
     navigate('/booking');
   };
 
-  // Экспорт записей
-  const handleExport = () => {
-    alert('Экспорт записей в разработке');
-  };
-
-  // Удаление записи
-  const handleDeleteAppointment = (appointmentId) => {
-    if (window.confirm('Вы уверены, что хотите удалить эту запись?')) {
-      setAppointments(prev => prev.filter(app => app.id !== appointmentId));
-    }
+  // Перенос записи
+  const handleReschedule = (appointmentId) => {
+    navigate(`/booking?edit=${appointmentId}`);
   };
 
   // Рендер карточки записи
   const renderAppointmentCard = (appointment) => {
     const statusInfo = getStatusInfo(appointment.status);
-    const isUpcoming = appointment.status === 'upcoming';
+    const isUpcoming = appointment.status === 'pending' || appointment.status === 'confirmed';
     const isCompleted = appointment.status === 'completed';
     const isCancelled = appointment.status === 'cancelled';
 
+    // Безопасное получение данных
+    const animalName = appointment.animal?.name || 'Неизвестный питомец';
+    const animalType = appointment.animal?.type || '';
+    const vetName = appointment.vet?.name || 'Неизвестный врач';
+    const specialization = appointment.vet?.specialization || '';
+    
+    const appointmentDate = new Date(appointment.date);
+    const day = appointmentDate.getDate();
+    const month = appointmentDate.toLocaleDateString('ru-RU', { month: 'short' });
+
     return (
-      <div key={appointment.id} className="appointment-card">
+      <div key={appointment._id} className="appointment-card">
         <div className="appointment-header">
           <div className="appointment-date">
-            <div className="date-day">{new Date(appointment.date).getDate()}</div>
-            <div className="date-month">
-              {new Date(appointment.date).toLocaleDateString('ru-RU', { month: 'short' })}
-            </div>
+            <div className="date-day">{day}</div>
+            <div className="date-month">{month}</div>
           </div>
           
           <div className="appointment-info">
             <div className="info-main">
               <h3 className="pet-name">
-                {appointment.petName} ({appointment.petType})
+                {animalName} {animalType && `(${animalType})`}
               </h3>
-              <p className="vet-name">{appointment.vetName}</p>
+              <p className="vet-name">{vetName}</p>
             </div>
             
             <div className="info-details">
-              <span className="specialization">{appointment.specialization}</span>
+              <span className="specialization">{specialization}</span>
               <span className="time">{appointment.time}</span>
-              <span className="duration">{appointment.duration} мин</span>
+              <span className="service">{appointment.service}</span>
             </div>
           </div>
           
@@ -291,14 +453,8 @@ const Appointments = () => {
         
         <div className="appointment-body">
           <div className="appointment-reason">
-            <strong>Причина:</strong> {appointment.reason}
+            <strong>Услуга:</strong> {appointment.service}
           </div>
-          
-          {appointment.symptoms.length > 0 && (
-            <div className="appointment-symptoms">
-              <strong>Симптомы:</strong> {appointment.symptoms.join(', ')}
-            </div>
-          )}
           
           {appointment.notes && (
             <div className="appointment-notes">
@@ -306,34 +462,25 @@ const Appointments = () => {
             </div>
           )}
           
-          {isCompleted && appointment.diagnosis && (
-            <div className="appointment-diagnosis">
-              <strong>Диагноз:</strong> {appointment.diagnosis}
-            </div>
-          )}
-          
-          {isCompleted && appointment.treatment && (
-            <div className="appointment-treatment">
-              <strong>Лечение:</strong> {appointment.treatment}
-            </div>
-          )}
-          
-          {isCancelled && appointment.cancelReason && (
-            <div className="appointment-cancel-reason">
-              <strong>Причина отмены:</strong> {appointment.cancelReason}
-            </div>
-          )}
+          <div className="appointment-meta">
+            <span className="meta-item">
+              <strong>Дата:</strong> {formatDate(appointment.date)}
+            </span>
+            <span className="meta-item">
+              <strong>Время:</strong> {appointment.time}
+            </span>
+          </div>
         </div>
         
         <div className="appointment-footer">
           <div className="appointment-price">
-            Стоимость: <strong>{appointment.price} ₽</strong>
+            Стоимость: <strong>{appointment.price || 0} ₽</strong>
           </div>
           
           <div className="appointment-actions">
             <button 
               className="btn btn-sm btn-outline"
-              onClick={() => handleViewDetails(appointment)}
+              onClick={() => setSelectedAppointment(appointment)}
             >
               Подробнее
             </button>
@@ -342,14 +489,17 @@ const Appointments = () => {
               <>
                 <button 
                   className="btn btn-sm btn-warning"
-                  onClick={() => handleCancelClick(appointment)}
+                  onClick={() => {
+                    setSelectedAppointment(appointment);
+                    setShowCancelModal(true);
+                  }}
                 >
                   Отменить
                 </button>
                 
                 <button 
                   className="btn btn-sm btn-primary"
-                  onClick={() => navigate(`/booking?edit=${appointment.id}`)}
+                  onClick={() => handleReschedule(appointment._id)}
                 >
                   Перенести
                 </button>
@@ -359,7 +509,7 @@ const Appointments = () => {
             {isCancelled && (
               <button 
                 className="btn btn-sm btn-danger"
-                onClick={() => handleDeleteAppointment(appointment.id)}
+                onClick={() => handleDeleteAppointment(appointment._id)}
               >
                 Удалить
               </button>
@@ -414,19 +564,12 @@ const Appointments = () => {
       <div className="container">
         {/* Заголовок */}
         <div className="page-header">
-           
-          <div >
+          <div>
             <h1>📋 Мои записи</h1>
             <p>Управление визитами в ветеринарную клинику</p>
           </div>
           
           <div className="header-actions">
-            <button 
-              className="btn btn-outline"
-              onClick={handleExport}
-            >
-              Экспорт
-            </button>
             <button 
               className="btn btn-primary"
               onClick={handleNewAppointment}
@@ -471,51 +614,6 @@ const Appointments = () => {
           </div>
         </div>
 
-        {/* Фильтры и поиск */}
-        <div className="filters-section">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Поиск по питомцу, врачу или причине..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-            <span className="search-icon">🔍</span>
-          </div>
-          
-          <div className="filters">
-            <select 
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="filter-select"
-            >
-              <option value="all">Все статусы</option>
-              <option value="upcoming">Предстоящие</option>
-              <option value="completed">Завершенные</option>
-              <option value="cancelled">Отмененные</option>
-            </select>
-            
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="filter-date"
-            />
-            
-            <button 
-              className="btn btn-sm btn-outline"
-              onClick={() => {
-                setSearchTerm('');
-                setFilterStatus('all');
-                setFilterDate('');
-              }}
-            >
-              Сбросить
-            </button>
-          </div>
-        </div>
-
         {/* Вкладки */}
         <div className="tabs">
           <button 
@@ -538,12 +636,12 @@ const Appointments = () => {
         </div>
 
         {/* Модальное окно деталей */}
-        {selectedAppointment && (
-          <div className="modal-overlay" onClick={handleCloseDetails}>
+        {selectedAppointment && !showCancelModal && (
+          <div className="modal-overlay" onClick={() => setSelectedAppointment(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Детали записи</h2>
-                <button className="modal-close" onClick={handleCloseDetails}>×</button>
+                <button className="modal-close" onClick={() => setSelectedAppointment(null)}>×</button>
               </div>
               
               <div className="modal-body">
@@ -553,21 +651,26 @@ const Appointments = () => {
                     <div className="detail-item">
                       <span className="detail-label">Питомец:</span>
                       <span className="detail-value">
-                        {selectedAppointment.petName} ({selectedAppointment.petType})
+                        {selectedAppointment.animal?.name || 'Неизвестно'} 
+                        {selectedAppointment.animal?.type && ` (${selectedAppointment.animal.type})`}
                       </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">Врач:</span>
-                      <span className="detail-value">{selectedAppointment.vetName}</span>
+                      <span className="detail-value">
+                        {selectedAppointment.vet?.name || 'Неизвестно'}
+                      </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">Специализация:</span>
-                      <span className="detail-value">{selectedAppointment.specialization}</span>
+                      <span className="detail-value">
+                        {selectedAppointment.vet?.specialization || 'Не указана'}
+                      </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">Дата и время:</span>
                       <span className="detail-value">
-                        {formatDate(selectedAppointment.date)} в {formatTime(selectedAppointment.time)}
+                        {formatDate(selectedAppointment.date)} в {selectedAppointment.time}
                       </span>
                     </div>
                     <div className="detail-item">
@@ -577,41 +680,13 @@ const Appointments = () => {
                       </span>
                     </div>
                     <div className="detail-item">
-                      <span className="detail-label">Длительность:</span>
-                      <span className="detail-value">{selectedAppointment.duration} минут</span>
+                      <span className="detail-label">Услуга:</span>
+                      <span className="detail-value">{selectedAppointment.service || 'Не указана'}</span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">Стоимость:</span>
-                      <span className="detail-value">{selectedAppointment.price} ₽</span>
+                      <span className="detail-value">{selectedAppointment.price || 0} ₽</span>
                     </div>
-                  </div>
-                </div>
-                
-                <div className="detail-section">
-                  <h3>Медицинская информация</h3>
-                  <div className="detail-grid">
-                    <div className="detail-item full-width">
-                      <span className="detail-label">Причина обращения:</span>
-                      <span className="detail-value">{selectedAppointment.reason}</span>
-                    </div>
-                    {selectedAppointment.symptoms.length > 0 && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Симптомы:</span>
-                        <span className="detail-value">{selectedAppointment.symptoms.join(', ')}</span>
-                      </div>
-                    )}
-                    {selectedAppointment.diagnosis && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Диагноз:</span>
-                        <span className="detail-value">{selectedAppointment.diagnosis}</span>
-                      </div>
-                    )}
-                    {selectedAppointment.treatment && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Лечение:</span>
-                        <span className="detail-value">{selectedAppointment.treatment}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
                 
@@ -624,16 +699,13 @@ const Appointments = () => {
                         <span className="detail-value">{selectedAppointment.notes}</span>
                       </div>
                     )}
-                    {selectedAppointment.cancelReason && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Причина отмены:</span>
-                        <span className="detail-value">{selectedAppointment.cancelReason}</span>
-                      </div>
-                    )}
                     <div className="detail-item">
                       <span className="detail-label">Создана:</span>
                       <span className="detail-value">
-                        {new Date(selectedAppointment.createdAt).toLocaleDateString('ru-RU')}
+                        {selectedAppointment.createdAt 
+                          ? new Date(selectedAppointment.createdAt).toLocaleDateString('ru-RU')
+                          : 'Неизвестно'
+                        }
                       </span>
                     </div>
                   </div>
@@ -641,15 +713,18 @@ const Appointments = () => {
               </div>
               
               <div className="modal-footer">
-                <button className="btn btn-outline" onClick={handleCloseDetails}>
+                <button className="btn btn-outline" onClick={() => setSelectedAppointment(null)}>
                   Закрыть
                 </button>
-                {selectedAppointment.status === 'upcoming' && (
+                {(selectedAppointment.status === 'pending' || selectedAppointment.status === 'confirmed') && (
                   <button 
                     className="btn btn-warning"
                     onClick={() => {
-                      handleCloseDetails();
-                      handleCancelClick(selectedAppointment);
+                      setSelectedAppointment(null);
+                      setTimeout(() => {
+                        setSelectedAppointment(selectedAppointment);
+                        setShowCancelModal(true);
+                      }, 100);
                     }}
                   >
                     Отменить запись
@@ -671,6 +746,7 @@ const Appointments = () => {
                   onClick={() => {
                     setShowCancelModal(false);
                     setCancelReason('');
+                    setSelectedAppointment(null);
                   }}
                 >
                   ×
@@ -679,8 +755,8 @@ const Appointments = () => {
               
               <div className="modal-body">
                 <p>
-                  Вы собираетесь отменить запись для <strong>{selectedAppointment.petName}</strong> на{' '}
-                  {formatDate(selectedAppointment.date)} в {formatTime(selectedAppointment.time)}
+                  Вы собираетесь отменить запись для <strong>{selectedAppointment.animal?.name || 'питомца'}</strong> на{' '}
+                  {formatDate(selectedAppointment.date)} в {selectedAppointment.time}
                 </p>
                 
                 <div className="form-group">
@@ -694,10 +770,6 @@ const Appointments = () => {
                     className="form-textarea"
                   />
                 </div>
-                
-                <div className="cancel-notice">
-                  <p>⚠️ Отмена менее чем за 24 часа до приема может облагаться штрафом.</p>
-                </div>
               </div>
               
               <div className="modal-footer">
@@ -706,6 +778,7 @@ const Appointments = () => {
                   onClick={() => {
                     setShowCancelModal(false);
                     setCancelReason('');
+                    setSelectedAppointment(null);
                   }}
                 >
                   Назад
