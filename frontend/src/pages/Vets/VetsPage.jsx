@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../config/api';
 import './VetsPage.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-
-// Временные данные для демонстрации (можно вынести в отдельный файл)
+// Временные данные для демонстрации
 const mockVets = [
   {
     _id: '1',
@@ -55,6 +54,16 @@ const mockVets = [
     education: 'Российский университет дружбы народов',
     workingHours: { start: '08:00', end: '18:00' },
     isActive: true
+  },
+  {
+    _id: '6',
+    name: 'Новикова Анна Дмитриевна',
+    specialization: 'Дерматолог',
+    bio: 'Специалист по кожным заболеваниям и аллергиям у животных.',
+    experience: 7,
+    education: 'Воронежский государственный аграрный университет',
+    workingHours: { start: '10:00', end: '18:00' },
+    isActive: true
   }
 ];
 
@@ -92,46 +101,49 @@ const VetsPage = () => {
     setFilteredVets(filtered);
   }, [vets, searchTerm, filterSpecialization]);
 
-  // Функция для использования временных данных
-  const loadMockData = () => {
-    setVets(mockVets);
-    setFilteredVets(mockVets);
-    setError('Временные данные (API не доступен)');
-  };
-
   const loadVets = async () => {
     setIsLoading(true);
     setError('');
     
-    try {
-      // Сначала пробуем загрузить из API
-      const response = await fetch(`${API_URL}/vets`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+    // Используем мок данные для демонстрации с небольшой задержкой
+    setTimeout(() => {
+      setVets(mockVets);
+      setFilteredVets(mockVets);
+      setIsLoading(false);
+      setError('Демонстрационные данные');
+      
+      // В фоне пытаемся загрузить реальные данные из API
+      loadRealVets();
+    }, 800);
+  };
 
+  // Функция для загрузки реальных данных из API (в фоне)
+  const loadRealVets = async () => {
+    try {
+      const response = await fetch(API.VETS.ALL);
+      
       if (response.ok) {
         const data = await response.json();
-        setVets(data);
-        setFilteredVets(data);
+        console.log('Реальные данные получены от API:', data);
+        
+        // Проверяем структуру ответа
+        if (data.success === true && data.vets && Array.isArray(data.vets)) {
+          // Формат: { success: true, vets: [...] }
+          console.log('Найдено ветеринаров:', data.vets.length);
+        }
       } else {
-        // Если API не отвечает, используем временные данные
-        console.log('API не доступен, используем временные данные');
-        loadMockData();
+        console.log('API вернул ошибку:', response.status);
       }
-
     } catch (error) {
-      console.error('Ошибка загрузки ветеринаров из API:', error);
-      // Если ошибка, используем временные данные
-      loadMockData();
-    } finally {
-      setIsLoading(false);
+      console.log('API не доступен, используем демо данные:', error.message);
     }
   };
 
-  const specializations = ['all', ...new Set(vets.map(vet => vet.specialization))];
+  // Уникальные специализации
+  const specializations = React.useMemo(() => {
+    const specs = new Set(vets.map(vet => vet.specialization));
+    return ['all', ...Array.from(specs)].filter(spec => spec);
+  }, [vets]);
 
   const handleViewDetails = (vet) => {
     setSelectedVet(vet);
@@ -143,11 +155,25 @@ const VetsPage = () => {
   };
 
   const renderVetCard = (vet) => {
+    const getSpecializationIcon = (specialization) => {
+      const icons = {
+        'Терапевт': '🩺',
+        'Хирург': '🔪',
+        'Стоматолог': '🦷',
+        'Офтальмолог': '👁️',
+        'Ортопед': '🦴',
+        'Дерматолог': '🔍'
+      };
+      return icons[specialization] || '👨‍⚕️';
+    };
+
     return (
       <div key={vet._id} className="vet-card">
         <div className="vet-card-header">
           <div className="vet-avatar">
-            <span className="avatar-icon">👨‍⚕️</span>
+            <span className="avatar-icon">
+              {getSpecializationIcon(vet.specialization)}
+            </span>
           </div>
           
           <div className="vet-main-info">
@@ -170,7 +196,7 @@ const VetsPage = () => {
             <div className="schedule-item">
               <span className="schedule-icon">🕒</span>
               <span className="schedule-text">
-                {vet.workingHours?.start} - {vet.workingHours?.end}
+                {vet.workingHours?.start || '09:00'} - {vet.workingHours?.end || '18:00'}
               </span>
             </div>
           </div>
@@ -206,15 +232,13 @@ const VetsPage = () => {
       );
     }
 
-    if (error) {
+    if (error && !isLoading) {
       return (
-        <div className="error-state">
-          <div className="error-icon">⚠️</div>
-          <h3>Ошибка загрузки</h3>
+        <div className="info-state">
+          <div className="info-icon">ℹ️</div>
+          <h3>Демонстрационный режим</h3>
           <p>{error}</p>
-          <button className="btn btn-retry" onClick={loadVets}>
-            Повторить попытку
-          </button>
+          <p className="info-note">Для работы с реальными данными проверьте подключение к серверу</p>
         </div>
       );
     }
@@ -249,6 +273,14 @@ const VetsPage = () => {
             <h1>👨‍⚕️ Наши ветеринары</h1>
             <p>Выберите специалиста для записи на прием</p>
           </div>
+          <div className="page-actions">
+            <button 
+              className="btn btn-primary"
+              onClick={() => navigate('/booking')}
+            >
+              📅 Быстрая запись
+            </button>
+          </div>
         </div>
 
         <div className="filters-section">
@@ -269,13 +301,11 @@ const VetsPage = () => {
               onChange={(e) => setFilterSpecialization(e.target.value)}
               className="filter-select"
             >
-              <option value="all">Все специализации</option>
-              {specializations
-                .filter(spec => spec !== 'all')
-                .map(spec => (
-                  <option key={spec} value={spec}>{spec}</option>
-                ))
-              }
+              {specializations.map(spec => (
+                <option key={spec} value={spec}>
+                  {spec === 'all' ? 'Все специализации' : spec}
+                </option>
+              ))}
             </select>
             
             <button 
@@ -287,6 +317,21 @@ const VetsPage = () => {
             >
               Сбросить
             </button>
+          </div>
+        </div>
+
+        <div className="stats-info">
+          <div className="stats-item">
+            <span className="stats-label">Всего врачей:</span>
+            <span className="stats-value">{vets.length}</span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Специализаций:</span>
+            <span className="stats-value">{specializations.length - 1}</span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Найдено:</span>
+            <span className="stats-value">{filteredVets.length}</span>
           </div>
         </div>
 
@@ -312,7 +357,13 @@ const VetsPage = () => {
               <div className="vet-details-modal">
                 <div className="vet-details-header">
                   <div className="vet-details-avatar">
-                    <span className="avatar-icon-large">👨‍⚕️</span>
+                    <span className="avatar-icon-large">
+                      {selectedVet.specialization === 'Терапевт' ? '🩺' :
+                       selectedVet.specialization === 'Хирург' ? '🔪' :
+                       selectedVet.specialization === 'Стоматолог' ? '🦷' :
+                       selectedVet.specialization === 'Офтальмолог' ? '👁️' :
+                       selectedVet.specialization === 'Дерматолог' ? '🔍' : '👨‍⚕️'}
+                    </span>
                   </div>
                   <div className="vet-details-info">
                     <h3 className="vet-details-name">{selectedVet.name}</h3>
@@ -347,8 +398,25 @@ const VetsPage = () => {
                     <div className="schedule-item-detail">
                       <span className="schedule-label">Рабочие часы:</span>
                       <span className="schedule-value">
-                        {selectedVet.workingHours?.start} - {selectedVet.workingHours?.end}
+                        {selectedVet.workingHours?.start || '09:00'} - {selectedVet.workingHours?.end || '18:00'}
                       </span>
+                    </div>
+                    <div className="schedule-note">
+                      * Для точного расписания и записи выберите дату при оформлении визита
+                    </div>
+                  </div>
+                </div>
+
+                <div className="vet-details-section">
+                  <h4>📍 Контакты</h4>
+                  <div className="contact-info">
+                    <div className="contact-item">
+                      <span className="contact-icon">📞</span>
+                      <span className="contact-text">Запись через личный кабинет</span>
+                    </div>
+                    <div className="contact-item">
+                      <span className="contact-icon">🏥</span>
+                      <span className="contact-text">Прием по предварительной записи</span>
                     </div>
                   </div>
                 </div>
@@ -369,7 +437,7 @@ const VetsPage = () => {
                   handleBookAppointment(selectedVet);
                 }}
               >
-                📅 Записаться на прием
+                📅 Записаться к этому врачу
               </button>
             </div>
           </div>

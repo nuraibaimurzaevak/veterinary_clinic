@@ -17,8 +17,58 @@ const HomePage = () => {
     { icon: '🏃', title: 'Реабилитация', desc: 'Восстановление после операций' },
   ];
 
+  // В реальном приложении здесь будет проверка авторизации
+  const isAuthenticated = false; // Поменяйте на true, чтобы увидеть блок
+
   return (
     <div className="home-page">
+      {/* Панель управления (только для авторизованных пользователей) */}
+      {isAuthenticated && (
+        <section className="dashboard-section">
+          <div className="container">
+            <div className="dashboard-stats">
+              <div className="stat-card">
+                <h3 className="stat-number">0</h3>
+                <p className="stat-label">Всего животных</p>
+              </div>
+              <div className="stat-card">
+                <h3 className="stat-number">2</h3>
+                <p className="stat-label">Записей сегодня</p>
+              </div>
+              <div className="stat-card">
+                <h3 className="stat-number">0</h3>
+                <p className="stat-label">Активных пользователей</p>
+              </div>
+              <div className="stat-card">
+                <h3 className="stat-number">—</h3>
+                <p className="stat-label">Ветеринаров</p>
+              </div>
+            </div>
+            
+            <div className="dashboard-actions">
+              <button 
+                className="dashboard-btn primary"
+                onClick={() => navigate('/new-appointment')}
+              >
+                📋 Новая запись
+              </button>
+              <button 
+                className="dashboard-btn secondary"
+                onClick={() => navigate('/my-pets')}
+              >
+                🐶 Мои питомцы
+              </button>
+              <button 
+                className="dashboard-btn secondary"
+                onClick={() => navigate('/my-appointments')}
+              >
+                📅 Мои записи
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Герой секция */}
       <section className="hero-section">
         <div className="container">

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API from '../../../../config/api'; // ← Добавляем импорт конфига API
 import './Animals.css';
-
-const API_URL = 'http://localhost:5000/api';
 
 const AdminAnimalsPage = () => {
   const [animals, setAnimals] = useState([]);
@@ -47,16 +46,16 @@ const AdminAnimalsPage = () => {
         return;
       }
 
-      // Загружаем животных и пользователей одновременно
+      // Загружаем животных и пользователей одновременно с использованием API конфига
       const [animalsRes, usersRes] = await Promise.all([
-        fetch(`${API_URL}/animals/all`, {
+        fetch(API.ANIMALS.ALL, {  // ← Используем API.ANIMALS.ALL
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }),
-        fetch(`${API_URL}/users`, {
+        fetch(API.USERS.ALL, {  // ← Используем API.USERS.ALL
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -113,7 +112,8 @@ const AdminAnimalsPage = () => {
         ownerType: animalForm.ownerType
       };
 
-      const response = await fetch(`${API_URL}/animals`, {
+      // Используем API.ANIMALS.CREATE
+      const response = await fetch(API.ANIMALS.CREATE, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -149,7 +149,8 @@ const AdminAnimalsPage = () => {
   const confirmDelete = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/animals/${animalToDelete._id}`, {
+      // Используем API.ANIMALS.DELETE с ID животного
+      const response = await fetch(API.ANIMALS.DELETE(animalToDelete._id), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../../../config/api'; // ← Добавляем импорт конфига API
 import './AllAppointment.css'; // Используем те же стили
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const AppointmentsAdmin = () => {
   const navigate = useNavigate();
@@ -54,7 +53,7 @@ const AppointmentsAdmin = () => {
     return localStorage.getItem('token');
   };
 
-  // API запрос с использованием fetch
+  // API запрос с использованием вашего конфига API
   const apiRequest = async (endpoint, options = {}) => {
     const token = getAuthToken();
     const user = getCurrentUser();
@@ -80,8 +79,8 @@ const AppointmentsAdmin = () => {
     };
 
     try {
-      console.log(`Отправка запроса на: ${API_BASE_URL}${endpoint}`);
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, defaultOptions);
+      console.log(`Отправка запроса на: ${API.BASE_URL}${endpoint}`);
+      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
         localStorage.clear();
@@ -101,11 +100,11 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Загрузка всех записей
+  // Загрузка всех записей с использованием вашего конфига
   const loadAllAppointments = async (page = 1) => {
     setIsLoading(true);
     try {
-      // Загружаем все записи (без фильтра по пользователю)
+      // Используем API.APPOINTMENTS.USER из конфига
       const data = await apiRequest('/appointments/user');
       
       console.log('Получены все записи:', data);
@@ -142,10 +141,11 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Загрузка списка ветеринаров
+  // Загрузка списка ветеринаров с использованием вашего конфига
   const loadVets = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/vets`);
+      // Используем API.VETS.ALL из конфига
+      const response = await fetch(API.VETS.ALL);
       const data = await response.json();
       setVets(data);
     } catch (error) {
@@ -153,9 +153,10 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Загрузка списка пользователей
+  // Загрузка списка пользователей с использованием вашего конфига
   const loadUsers = async () => {
     try {
+      // Используем API.USERS.ALL из конфига
       const data = await apiRequest('/users');
       setUsers(data);
     } catch (error) {
@@ -444,11 +445,13 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Отмена записи администратором
+  // Отмена записи администратором с использованием вашего конфига
   const handleCancelAppointment = async (appointmentId, reason = '') => {
     try {
-      await apiRequest(`/appointments/${appointmentId}/cancel`, {
-        method: 'PUT'
+      // Используем API.APPOINTMENTS.UPDATE из конфига
+      await apiRequest(API.APPOINTMENTS.UPDATE(appointmentId).replace(API.BASE_URL, ''), {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled', cancelReason: reason })
       });
 
       // Обновляем локальное состояние
@@ -468,10 +471,11 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Обновление записи
+  // Обновление записи с использованием вашего конфига
   const handleUpdateAppointment = async (appointmentId, updates) => {
     try {
-      await apiRequest(`/appointments/${appointmentId}`, {
+      // Используем API.APPOINTMENTS.UPDATE из конфига
+      await apiRequest(API.APPOINTMENTS.UPDATE(appointmentId).replace(API.BASE_URL, ''), {
         method: 'PUT',
         body: JSON.stringify(updates)
       });
@@ -490,14 +494,15 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Удаление записи
+  // Удаление записи с использованием вашего конфига
   const handleDeleteAppointment = async (appointmentId) => {
     if (!window.confirm('Вы уверены, что хотите удалить эту запись?')) {
       return;
     }
 
     try {
-      await apiRequest(`/appointments/${appointmentId}`, {
+      // Используем API.APPOINTMENTS.DELETE из конфига
+      await apiRequest(API.APPOINTMENTS.DELETE(appointmentId).replace(API.BASE_URL, ''), {
         method: 'DELETE'
       });
       

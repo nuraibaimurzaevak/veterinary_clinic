@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../config/api'; // ← Импортируем конфиг
 import './AppointmentPage.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Appointments = () => {
   const navigate = useNavigate();
@@ -34,7 +33,7 @@ const Appointments = () => {
     return localStorage.getItem('token');
   };
 
-  // API запрос с использованием fetch
+  // API запрос с использованием fetch - ИСПРАВЛЕНО
   const apiRequest = async (endpoint, options = {}) => {
     const token = getAuthToken();
     const user = getCurrentUser();
@@ -54,8 +53,8 @@ const Appointments = () => {
     };
 
     try {
-      console.log(`Отправка запроса на: ${API_BASE_URL}${endpoint}`);
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, defaultOptions);
+      console.log(`Отправка запроса на: ${API.BASE_URL}${endpoint}`); // ← Используем API.BASE_URL
+      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
         localStorage.clear();
@@ -75,7 +74,7 @@ const Appointments = () => {
     }
   };
 
-  // Загрузка записей
+  // Загрузка записей - ИСПРАВЛЕНО
   const loadAppointments = async () => {
     setIsLoading(true);
     try {
@@ -88,35 +87,47 @@ const Appointments = () => {
 
       console.log('Загрузка записей для пользователя:', user.id);
       
-      // Используем правильный эндпоинт
+      // Используем API.APPOINTMENTS.USER - ИСПРАВЛЕНО
       const data = await apiRequest('/appointments/user');
       
       console.log('Получены записи:', data);
       
-      if (data && Array.isArray(data)) {
-        setAppointments(data);
-        
-        // Рассчитываем статистику
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        setStats({
-          total: data.length,
-          upcoming: data.filter(a => 
-            (a.status === 'pending' || a.status === 'confirmed') && 
-            new Date(a.date) >= today
-          ).length,
-          completed: data.filter(a => a.status === 'completed').length,
-          cancelled: data.filter(a => a.status === 'cancelled').length,
-          today: data.filter(a => {
-            const appointmentDate = new Date(a.date);
-            return appointmentDate.toDateString() === today.toDateString();
-          }).length
-        });
+      // Обработка разных форматов ответа
+      let appointmentsData = [];
+      
+      if (data && data.success && data.appointments) {
+        // Формат: { success: true, appointments: [...] }
+        appointmentsData = data.appointments;
+      } else if (data && Array.isArray(data)) {
+        // Формат: [...]
+        appointmentsData = data;
+      } else if (data && data.appointments) {
+        // Формат: { appointments: [...] }
+        appointmentsData = data.appointments;
       } else {
         console.error('Неверный формат ответа:', data);
-        setAppointments([]);
+        appointmentsData = [];
       }
+      
+      setAppointments(appointmentsData);
+      
+      // Рассчитываем статистику
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      setStats({
+        total: appointmentsData.length,
+        upcoming: appointmentsData.filter(a => 
+          (a.status === 'pending' || a.status === 'confirmed') && 
+          new Date(a.date) >= today
+        ).length,
+        completed: appointmentsData.filter(a => a.status === 'completed').length,
+        cancelled: appointmentsData.filter(a => a.status === 'cancelled').length,
+        today: appointmentsData.filter(a => {
+          const appointmentDate = new Date(a.date);
+          return appointmentDate.toDateString() === today.toDateString();
+        }).length
+      });
       
     } catch (error) {
       console.error('Ошибка загрузки записей:', error.message);
@@ -320,9 +331,10 @@ const Appointments = () => {
     }
   };
 
-  // Отмена записи через API
+  // Отмена записи через API - ИСПРАВЛЕНО
   const handleCancelAppointment = async (appointmentId) => {
     try {
+      // Используем правильный endpoint для отмены
       await apiRequest(`/appointments/${appointmentId}/cancel`, {
         method: 'PUT'
       });
@@ -364,7 +376,7 @@ const Appointments = () => {
     }
   };
 
-  // Удаление записи
+  // Удаление записи - ИСПРАВЛЕНО
   const handleDeleteAppointment = async (appointmentId) => {
     if (!window.confirm('Вы уверены, что хотите удалить эту запись?')) {
       return;
@@ -628,6 +640,53 @@ const Appointments = () => {
           >
             История ({stats.completed + stats.cancelled})
           </button>
+        </div>
+
+        {/* Фильтры */}
+        <div className="filters-section">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск по питомцу, врачу или услуге..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+            <span className="search-icon">🔍</span>
+          </div>
+          
+          <div className="filter-options">
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">Все статусы</option>
+              <option value="pending">Ожидание</option>
+              <option value="confirmed">Подтвержден</option>
+              <option value="completed">Завершен</option>
+              <option value="cancelled">Отменен</option>
+            </select>
+            
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="date-input"
+              placeholder="Фильтр по дате"
+            />
+            
+            <button 
+              className="btn btn-sm btn-outline"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterStatus('all');
+                setFilterDate('');
+              }}
+            >
+              Сбросить
+            </button>
+          </div>
         </div>
 
         {/* Список записей */}

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../config/api'; // ← Используем ваш конфиг API
 import './MyAnimalsPage.css';
-
-const API_URL = 'http://localhost:5000/api';
 
 const MyAnimalsPage = () => {
   const navigate = useNavigate();
@@ -44,6 +43,43 @@ const MyAnimalsPage = () => {
     return user ? JSON.parse(user) : null;
   };
 
+  // Получение аватара по типу (вынес в отдельную функцию)
+  const getAvatarByType = (type) => {
+    const avatars = {
+      'Собака': '🐕',
+      'Кот': '🐱',
+      'Попугай': '🐦',
+      'Хомяк': '🐹',
+      'Кролик': '🐰',
+      'Другое': '🐾',
+      'dog': '🐕',
+      'cat': '🐱',
+      'bird': '🐦',
+      'rabbit': '🐰',
+      'hamster': '🐹',
+      'other': '🐾'
+    };
+    return avatars[type] || '🐾';
+  };
+
+  // Получение типа для отправки на сервер
+  const getTypeForServer = (type) => {
+    const typesMap = {
+      'dog': 'Собака',
+      'cat': 'Кот',
+      'bird': 'Попугай',
+      'rabbit': 'Кролик',
+      'hamster': 'Хомяк',
+      'other': 'Другое'
+    };
+    return typesMap[type] || 'Другое';
+  };
+
+  // Получение пола для отправки на сервер
+  const getGenderForServer = (gender) => {
+    return gender === 'male' ? 'Мужской' : 'Женский';
+  };
+
   // Загрузка животных с сервера
   useEffect(() => {
     loadAnimals();
@@ -66,7 +102,8 @@ const MyAnimalsPage = () => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/animals/user`, {
+      // Используем ваш API конфиг
+      const response = await fetch(API.ANIMALS.USER, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -108,43 +145,6 @@ const MyAnimalsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Получение аватара по типу
-  const getAvatarByType = (type) => {
-    const avatars = {
-      'Собака': '🐕',
-      'Кот': '🐱',
-      'Попугай': '🐦',
-      'Хомяк': '🐹',
-      'Кролик': '🐰',
-      'Другое': '🐾',
-      'dog': '🐕',
-      'cat': '🐱',
-      'bird': '🐦',
-      'rabbit': '🐰',
-      'hamster': '🐹',
-      'other': '🐾'
-    };
-    return avatars[type] || '🐾';
-  };
-
-  // Получение типа для отправки на сервер
-  const getTypeForServer = (type) => {
-    const typesMap = {
-      'dog': 'Собака',
-      'cat': 'Кот',
-      'bird': 'Попугай',
-      'rabbit': 'Кролик',
-      'hamster': 'Хомяк',
-      'other': 'Другое'
-    };
-    return typesMap[type] || 'Другое';
-  };
-
-  // Получение пола для отправки на сервер
-  const getGenderForServer = (gender) => {
-    return gender === 'male' ? 'Мужской' : 'Женский';
   };
 
   // Фильтрация животных
@@ -241,7 +241,8 @@ const MyAnimalsPage = () => {
         microchipNumber: animalForm.microchipNumber || ''
       };
 
-      const response = await fetch(`${API_URL}/animals`, {
+      // Используем ваш API конфиг
+      const response = await fetch(API.ANIMALS.CREATE, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -268,7 +269,7 @@ const MyAnimalsPage = () => {
     }
   };
 
-  // Редактирование животного (пока не реализовано)
+  // Редактирование животного
   const handleEditAnimal = (animal) => {
     alert('Редактирование пока не реализовано');
   };
@@ -288,7 +289,8 @@ const MyAnimalsPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/animals/${animalToDelete.id}`, {
+      // Используем ваш API конфиг
+      const response = await fetch(API.ANIMALS.DELETE(animalToDelete.id), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -340,6 +342,7 @@ const MyAnimalsPage = () => {
 
   // Просмотр истории
   const handleViewHistory = (animal) => {
+    // Можно использовать API.APPOINTMENTS.USER
     alert('История пока не реализована');
   };
 

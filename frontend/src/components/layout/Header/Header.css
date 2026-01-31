@@ -15,8 +15,10 @@
 .header {
   background: var(--white);
   box-shadow: 0 2px 20px rgba(118, 136, 186, 0.1);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
   border-bottom: 1px solid var(--accent-color);
   height: var(--header-height);
@@ -35,6 +37,11 @@
   justify-content: space-between;
   align-items: center;
   height: 100%;
+}
+
+/* УБРАН ЭЛЕМЕНТ .header-spacer - вместо него используем padding-top для body */
+body {
+  padding-top: var(--header-height);
 }
 
 /* Логотип */
@@ -223,10 +230,7 @@
   border-color: #ff6b6b;
 }
 
-/* Отступ для фиксированного header */
-.header-spacer {
-  height: var(--header-height);
-}
+/* УБРАН .header-spacer - теперь используем padding-top для body */
 
 /* Мобильное меню */
 .menu-overlay {
@@ -404,8 +408,8 @@
     height: var(--header-height-mobile);
   }
   
-  .header-spacer {
-    height: var(--header-height-mobile);
+  body {
+    padding-top: var(--header-height-mobile);
   }
   
   /* Скрываем десктопные элементы */
@@ -522,4 +526,15 @@
 
 .admin-header .btn-register:hover {
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* Дополнительные стили для контента страниц */
+main {
+  min-height: calc(100vh - var(--header-height));
+}
+
+@media (max-width: 768px) {
+  main {
+    min-height: calc(100vh - var(--header-height-mobile));
+  }
 }

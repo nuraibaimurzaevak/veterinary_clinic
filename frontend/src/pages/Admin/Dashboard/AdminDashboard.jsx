@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../../config/api'; // ← Добавляем импорт конфига API
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -10,15 +11,12 @@ const AdminDashboard = () => {
   const [error, setError] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
 
-  // API URL
-  const API_URL = 'http://localhost:5000/api';
-
   // Получение токена
   const getAuthToken = () => {
     return localStorage.getItem('token');
   };
 
-  // API запрос с авторизацией
+  // API запрос с авторизацией, использующий ваш конфиг
   const apiRequest = async (endpoint, options = {}) => {
     const token = getAuthToken();
     
@@ -37,8 +35,9 @@ const AdminDashboard = () => {
     };
 
     try {
-      console.log(`Запрос: ${API_URL}${endpoint}`);
-      const response = await fetch(`${API_URL}${endpoint}`, defaultOptions);
+      // Используем API.BASE_URL из конфига
+      console.log(`Запрос: ${API.BASE_URL}${endpoint}`);
+      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
         localStorage.clear();
@@ -89,14 +88,14 @@ const AdminDashboard = () => {
   // Функция для скачивания отчета
   const handleDownloadReport = async () => {
     try {
-      // Используем существующий эндпоинт для записей
-      const appointments = await apiRequest('/appointments');
+      // Используем API.APPOINTMENTS.USER из конфига (но без пользователя)
+      const appointments = await apiRequest('/appointments/user');
       
       // Преобразуем в CSV для скачивания
       const csvData = appointments.map(app => ({
         ID: app._id,
         Животное: app.animal?.name || 'Не указано',
-        Владелец: app.user?.name || 'Не указано',
+        Владелец: app.user?.name || app.createdBy?.name || 'Не указано',
         Ветеринар: app.vet?.name || 'Не указано',
         Дата: app.date || 'Не указано',
         Время: app.time || 'Не указано',
@@ -117,10 +116,10 @@ const AdminDashboard = () => {
 
   // Быстрые действия
   const quickActions = [
-    { title: 'Управление животными', icon: '🐕', onClick: () => navigate('/animals') },
-    { title: 'Управление ветеринарами', icon: '👨‍⚕️', onClick: () => navigate('/vets') },
+    { title: 'Управление животными', icon: '🐕', onClick: () => navigate('/admin/animals') },
+    { title: 'Управление ветеринарами', icon: '👨‍⚕️', onClick: () => navigate('/admin/vets') },
     { title: 'Скачать отчет', icon: '📊', onClick: handleDownloadReport },
-    { title: 'Все записи', icon: '📅', onClick: () => navigate('/appointments') },
+    { title: 'Все записи', icon: '📅', onClick: () => navigate('/admin/appointments') },
   ];
 
   // Загрузка данных с сервера
@@ -133,11 +132,15 @@ const AdminDashboard = () => {
       setLoading(true);
       setUsingMockData(false);
       
-      // Загружаем данные с существующих эндпоинтов
+      // Загружаем данные с существующих эндпоинтов, используя конфиг
       const [animalsResponse, appointmentsResponse, vetsResponse, usersResponse] = await Promise.all([
+        // Используем API.ANIMALS.ALL для животных
         apiRequest('/animals/all').catch(() => ({ animals: [] })),
-        apiRequest('/appointments').catch(() => ({ appointments: [] })),
+        // Используем API.APPOINTMENTS.USER для записей
+        apiRequest('/appointments/user').catch(() => ({ appointments: [] })),
+        // Используем API.VETS.ALL для ветеринаров
         apiRequest('/vets').catch(() => ({ vets: [] })),
+        // Используем API.USERS.ALL для пользователей
         apiRequest('/users').catch(() => ({ users: [] }))
       ]);
 

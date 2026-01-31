@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../config/api';
 import './Booking.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Booking = () => {
   const navigate = useNavigate();
@@ -85,7 +84,7 @@ const Booking = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, defaultOptions);
+      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
         localStorage.clear();
@@ -158,7 +157,7 @@ const Booking = () => {
       return schedule;
     }
     
-    // Стандартное расписание (ПОЛНЫЙ рабочий день для понедельника)
+    // Стандартное расписание
     return {
       monday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
       tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
@@ -193,8 +192,8 @@ const Booking = () => {
       
       const formattedDate = {
         id: dateId,
-        date: new Date(dateId), // Новая дата без времени
-        originalDate: date, // Сохраняем оригинальную дату
+        date: new Date(dateId),
+        originalDate: date,
         day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
         number: date.getDate(),
         month: date.toLocaleDateString('ru-RU', { month: 'short' }),
@@ -206,7 +205,6 @@ const Booking = () => {
     }
     
     setAvailableDates(dates);
-    console.log('Сгенерировано дат:', dates.length, 'Первая дата:', dates[0]?.id, 'Последняя дата:', dates[dates.length-1]?.id);
   };
 
   // Загрузка данных из БД
@@ -221,12 +219,9 @@ const Booking = () => {
 
         // Загрузка ветеринаров
         const vetsResponse = await apiRequest('/vets');
-        console.log('Загружено ветеринаров:', vetsResponse?.length || 0);
         
         // Правильно обрабатываем расписание каждого ветеринара
         const processedVets = (vetsResponse || []).map(vet => {
-          console.log(`Обработка ветеринара ${vet.name}:`, vet.schedule);
-          
           return {
             ...vet,
             schedule: parseVetSchedule(vet),
@@ -235,7 +230,6 @@ const Booking = () => {
         });
         
         setVets(processedVets);
-        console.log('Обработано ветеринаров:', processedVets.length);
 
       } catch (error) {
         console.error('Ошибка загрузки данных:', error);
@@ -258,11 +252,9 @@ const Booking = () => {
   // Проверка, работает ли ветеринар в определенный день
   const isVetWorkingOnDate = (vet, dateStr) => {
     if (!vet || !vet.schedule) {
-      console.log(`Ветеринар ${vet?.name} не имеет расписания, используем по умолчанию`);
       return true;
     }
     
-    // Преобразуем строку даты в объект Date
     const date = new Date(dateStr);
     const dayOfWeek = date.getDay();
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -271,14 +263,10 @@ const Booking = () => {
     const daySchedule = vet.schedule[dayName];
     
     if (!daySchedule) {
-      console.log(`Расписание для ${dayName} не найдено у ветеринара ${vet.name}`);
-      // По умолчанию будни - рабочие, выходные - нет
       return dayName !== 'saturday' && dayName !== 'sunday';
     }
     
-    const isWorking = daySchedule.isWorking !== false;
-    console.log(`Ветеринар ${vet.name}, день ${dayName}, работает: ${isWorking}`);
-    return isWorking;
+    return daySchedule.isWorking !== false;
   };
 
   // Получение рабочего расписания на день
@@ -310,7 +298,6 @@ const Booking = () => {
     const daySchedule = getWorkingHoursForDate(vet, dateStr);
     
     if (!daySchedule.isWorking) {
-      console.log(`Ветеринар ${vet.name} не работает в этот день`);
       return [];
     }
     
@@ -319,8 +306,6 @@ const Booking = () => {
     const breakStart = daySchedule.breakStart;
     const breakEnd = daySchedule.breakEnd;
     const slotDuration = vet.slotDuration || 30;
-    
-    console.log(`Генерация слотов для ${vet.name}: ${startTime} - ${endTime}, перерыв: ${breakStart}-${breakEnd}`);
     
     const slots = [];
     const [startHour, startMinute] = startTime.split(':').map(Number);
@@ -348,7 +333,6 @@ const Booking = () => {
       }
     }
     
-    console.log(`Сгенерировано ${slots.length} слотов для ${dateStr}`);
     return slots;
   };
 
@@ -361,11 +345,9 @@ const Booking = () => {
           .filter(slot => !slot.isAvailable)
           .map(slot => slot.time);
         setBusySlots(busy);
-        console.log(`Занятые слоты на ${date}:`, busy);
       }
     } catch (error) {
       console.error('Ошибка получения занятых слотов:', error);
-      // В случае ошибки считаем все слоты свободными
       setBusySlots([]);
     }
   };
@@ -377,7 +359,6 @@ const Booking = () => {
         vet.specialization === bookingData.specialization && vet.isActive !== false
       );
       setFilteredVets(filtered);
-      console.log(`Отфильтровано ветеринаров по специализации ${bookingData.specialization}:`, filtered.length);
       
       if (filtered.length > 0 && !bookingData.vetId) {
         setBookingData(prev => ({ ...prev, vetId: filtered[0]._id }));
@@ -392,15 +373,6 @@ const Booking = () => {
       setSelectedAnimal(animal);
     }
   }, [bookingData.animalId, userAnimals]);
-
-  // Отслеживание изменений даты для отладки
-  useEffect(() => {
-    if (bookingData.date) {
-      console.log('Текущая выбранная дата:', bookingData.date);
-      console.log('Дата как объект:', new Date(bookingData.date));
-      console.log('День недели:', new Date(bookingData.date).getDay());
-    }
-  }, [bookingData.date]);
 
   // Обработчики изменений
   const handleAnimalSelect = (animalId) => {
@@ -425,8 +397,6 @@ const Booking = () => {
   };
 
   const handleDateSelect = async (dateId) => {
-    console.log('Выбрана дата:', dateId, 'Текущий шаг:', currentStep);
-    
     setBookingData(prev => ({ 
       ...prev, 
       date: dateId, 
@@ -438,22 +408,14 @@ const Booking = () => {
     
     if (bookingData.vetId) {
       const vet = vets.find(v => v._id === bookingData.vetId);
-      console.log('Выбранный ветеринар для даты:', vet?.name);
       
       if (vet && isVetWorkingOnDate(vet, dateId)) {
-        // Генерируем слоты
         const slots = generateTimeSlots(vet, dateId);
-        console.log(`Сгенерировано слотов: ${slots.length}`);
         setAvailableTimeSlots(slots);
-        
-        // Загружаем занятые слоты
         await fetchBusySlots(bookingData.vetId, dateId);
       } else {
-        console.log('Ветеринар не работает в этот день');
         setAvailableTimeSlots([]);
       }
-    } else {
-      console.log('Ветеринар не выбран');
     }
   };
 
@@ -505,7 +467,7 @@ const Booking = () => {
       case 2:
         return !!bookingData.service;
       case 3:
-        return true; // Автовыбор всегда валиден
+        return true;
       case 4:
         return !!bookingData.vetId;
       case 5:
@@ -558,7 +520,7 @@ const Booking = () => {
         appointmentData.notes = `Симптомы: ${bookingData.symptoms.join(', ')}. ${appointmentData.notes || ''}`;
       }
 
-      const response = await apiRequest('/appointments', {
+      await apiRequest('/appointments', {
         method: 'POST',
         body: JSON.stringify(appointmentData)
       });
@@ -851,7 +813,6 @@ const Booking = () => {
                   </div>
                 </div>
                 
-                {/* Расписание ветеринара */}
                 <div className="vet-schedule">
                   <h4>Рабочее расписание:</h4>
                   <div className="schedule-grid">
@@ -905,31 +866,6 @@ const Booking = () => {
         <div className="step-header">
           <h2>Выберите дату и время</h2>
           <p>Доступные слоты для {selectedVet?.name || 'ветеринара'}</p>
-          {selectedVet && (
-            <div className="vet-info-summary">
-              <p className="vet-schedule-note">
-                <strong>Отладка:</strong> Работает в понедельник: {selectedVet.schedule?.monday?.isWorking ? 'ДА' : 'НЕТ'}
-              </p>
-              <p className="vet-schedule-note">
-                Рабочие дни врача: {Object.entries(selectedVet.schedule || {})
-                  .filter(([_, schedule]) => schedule?.isWorking)
-                  .map(([day, _]) => {
-                    const dayNames = {
-                      monday: 'Пн',
-                      tuesday: 'Вт', 
-                      wednesday: 'Ср',
-                      thursday: 'Чт',
-                      friday: 'Пт',
-                      saturday: 'Сб',
-                      sunday: 'Вс'
-                    };
-                    return dayNames[day];
-                  })
-                  .join(', ')
-                }
-              </p>
-            </div>
-          )}
         </div>
         
         <div className="date-time-section">
@@ -971,7 +907,6 @@ const Booking = () => {
             </div>
             <div className="dates-info">
               <p>Пн-Пт: рабочие дни, Сб-Вс: выходные (по умолчанию)</p>
-              <p>Сегодня: {new Date().toLocaleDateString('ru-RU')}</p>
             </div>
           </div>
           
@@ -983,8 +918,6 @@ const Booking = () => {
                 <div className="empty-slots">
                   <p>❌ Нет доступных слотов на эту дату</p>
                   <p>Ветеринар не работает или все слоты заняты</p>
-                  <p>Выбранная дата: {bookingData.date}</p>
-                  <p>Работает ли ветеринар: {selectedVet ? (isVetWorkingOnDate(selectedVet, bookingData.date) ? 'ДА' : 'НЕТ') : 'НЕ ВЫБРАН'}</p>
                 </div>
               ) : (
                 <>
@@ -1060,7 +993,6 @@ const Booking = () => {
         </div>
         
         <div className="confirmation-cards">
-          {/* Животное */}
           <div className="confirmation-card">
             <h3>Животное</h3>
             <div className="confirmation-content">
@@ -1089,7 +1021,6 @@ const Booking = () => {
             </button>
           </div>
           
-          {/* Причина */}
           <div className="confirmation-card">
             <h3>Причина обращения</h3>
             <div className="confirmation-content">
@@ -1123,7 +1054,6 @@ const Booking = () => {
             </button>
           </div>
           
-          {/* Врач */}
           <div className="confirmation-card">
             <h3>Врач</h3>
             <div className="confirmation-content">
@@ -1154,7 +1084,6 @@ const Booking = () => {
             </button>
           </div>
           
-          {/* Время и стоимость */}
           <div className="confirmation-card">
             <h3>Время приема</h3>
             <div className="confirmation-content">
@@ -1186,7 +1115,6 @@ const Booking = () => {
           </div>
         </div>
         
-        {/* Дополнительная информация */}
         <div className="additional-info">
           <h3>Дополнительная информация</h3>
           <div className="form-group">
@@ -1301,7 +1229,7 @@ const Booking = () => {
                   Оформление...
                 </>
               ) : (
-                `✅ Подтвердить запись (${calculatePrice(bookingData.service)} ₽)`
+                `✅ Подтвердить запись (${calculatePrice(bookingData.service)} C)`
               )}
             </button>
           )}

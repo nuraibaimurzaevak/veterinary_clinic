@@ -1,270 +1,252 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import API from '../../config/api';
 import './LoginPage.css';
 
-const API_URL = 'http://localhost:5000/api';
-
-const Login = () => {
+const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    rememberMe: false
-  });
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const location = useLocation();
+  const { login } = useAuth();
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-    if (loginError) setLoginError('');
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Введите email';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Введите корректный email';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Введите пароль';
-    }
-    
-    return newErrors;
-  };
+  // Получаем путь для возврата после входа
+  const from = location.state?.from || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    setError('');
+    setLoading(true);
+
+    // Базовая валидация
+    if (!email || !password) {
+      setError('Пожалуйста, заполните все поля');
+      setLoading(false);
       return;
     }
-    
-    setIsLoading(true);
-    setLoginError('');
+
+    try {
+      await login(email, password);
+      // Перенаправляем на страницу, с которой пришли, или на главную
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.message || 'Ошибка входа. Проверьте email и пароль.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async (role = 'user') => {
+    setLoading(true);
+    setError('');
     
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const demoEmail = role === 'admin' ? 'admin@vetclinic.ru' : 'user@example.com';
+      const demoPassword = '123456';
+      
+      // Прямой вызов API для демо-входа (или используйте моковые данные)
+      const response = await fetch(`${API.BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        })
+        body: JSON.stringify({ 
+          email: demoEmail, 
+          password: demoPassword 
+        }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Ошибка при входе');
-      }
-
-      // Сохраняем токен и данные пользователя
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // Сохраняем настройку "запомнить меня"
-      if (formData.rememberMe) {
-        localStorage.setItem('rememberedEmail', formData.email);
-        localStorage.setItem('rememberMe', 'true');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user && data.token) {
+          const userData = {
+            id: data.user._id || data.user.id,
+            name: data.user.firstName || data.user.name || 'Пользователь',
+            email: data.user.email,
+            role: data.user.role || role,
+            token: data.token
+          };
+          
+          // Сохраняем в localStorage
+          localStorage.setItem('token', userData.token);
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          // Отправляем событие для обновления всех компонентов
+          window.dispatchEvent(new Event('authChange'));
+          
+          // Перенаправляем
+          navigate(from, { replace: true });
+        } else {
+          throw new Error('Неверные демо-данные');
+        }
       } else {
-        localStorage.removeItem('rememberedEmail');
-        localStorage.removeItem('rememberMe');
+        // Если API не работает, используем мок
+        const mockUser = {
+          id: Date.now(),
+          name: role === 'admin' ? 'Администратор' : 'Пользователь',
+          email: demoEmail,
+          role: role,
+          token: 'demo-token-' + Date.now()
+        };
+        
+        localStorage.setItem('token', mockUser.token);
+        localStorage.setItem('user', JSON.stringify(mockUser));
+        window.dispatchEvent(new Event('authChange'));
+        navigate(from, { replace: true });
       }
-      
-      // РЕДИРЕКТ В ЗАВИСИМОСТИ ОТ РОЛИ
-      if (data.user.role === 'admin') {
-        navigate('/dashboard'); // Админ
-      } else {
-        navigate('/'); // Обычный пользователь на главную
-      }
-      
-    } catch (error) {
-      setLoginError(error.message || 'Ошибка при входе. Попробуйте снова.');
-      console.error('Login error:', error);
+    } catch (err) {
+      setError('Демо-вход временно недоступен');
+      console.error('Demo login error:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-
-  const handleForgotPassword = () => {
-    alert('Функция восстановления пароля в разработке');
-  };
-
-  // При загрузке компонента, проверяем сохраненный email
-  useEffect(() => {
-    const rememberedEmail = localStorage.getItem('rememberedEmail');
-    if (rememberedEmail) {
-      setFormData(prev => ({
-        ...prev,
-        email: rememberedEmail,
-        rememberMe: true
-      }));
-    }
-  }, []);
 
   return (
     <div className="login-page">
-      <div className="container">
-        <div className="login-wrapper">
-          {/* Левая часть - информация */}
-          <div className="login-info">
-            <div className="login-info-content">
-              <h1 className="login-title">С возвращением!</h1>
-              <p className="login-subtitle">
-                Войдите в свой аккаунт, чтобы продолжить заботиться о питомце
-              </p>
-              
-              <div className="login-features">
-                <div className="feature-item">
-                  <div className="feature-icon">📋</div>
-                  <div className="feature-text">
-                    <h3>История посещений</h3>
-                    <p>Все записи в одном месте</p>
-                  </div>
-                </div>
-                
-                <div className="feature-item">
-                  <div className="feature-icon">🐕</div>
-                  <div className="feature-text">
-                    <h3>Карточки питомцев</h3>
-                    <p>Управление информацией о животных</p>
-                  </div>
-                </div>
-                
-                <div className="feature-item">
-                  <div className="feature-icon">🔔</div>
-                  <div className="feature-text">
-                    <h3>Напоминания</h3>
-                    <p>О прививках и визитах</p>
-                  </div>
-                </div>
-              </div>
+      <div className="login-container">
+        {/* Заголовок */}
+        <div className="login-header">
+          <div className="logo">
+            <span className="logo-icon">🐾</span>
+            <span className="logo-text">VetClinic</span>
+          </div>
+          <h1>Вход в систему</h1>
+          <p className="login-subtitle">
+            Войдите в свой аккаунт для управления записями и питомцами
+          </p>
+        </div>
+
+        {/* Форма входа */}
+        <form className="login-form" onSubmit={handleSubmit}>
+          {error && (
+            <div className="alert alert-error">
+              <span className="alert-icon">⚠️</span>
+              {error}
             </div>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">
+              Email адрес
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              className="form-input"
+              required
+              disabled={loading}
+              autoComplete="email"
+            />
           </div>
 
-          {/* Правая часть - форма */}
-          <div className="login-form-container">
-            <div className="login-form-card">
-              <div className="form-header">
-                <h2>Вход в аккаунт</h2>
-                <p>Введите ваши данные для входа</p>
-              </div>
-
-              {loginError && (
-                <div className="alert alert-error">
-                  <span className="alert-icon">⚠️</span>
-                  {loginError}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="login-form">
-                <div className="form-group">
-                  <label htmlFor="email" className="form-label">
-                    Email адрес
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`form-input ${errors.email ? 'error' : ''}`}
-                    placeholder="example@vetclinic.ru"
-                    disabled={isLoading}
-                  />
-                  {errors.email && (
-                    <span className="error-message">{errors.email}</span>
-                  )}
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password" className="form-label">
-                    Пароль
-                  </label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className={`form-input ${errors.password ? 'error' : ''}`}
-                    placeholder="Введите ваш пароль"
-                    disabled={isLoading}
-                  />
-                  {errors.password && (
-                    <span className="error-message">{errors.password}</span>
-                  )}
-                </div>
-
-                <div className="form-options">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      name="rememberMe"
-                      checked={formData.rememberMe}
-                      onChange={handleChange}
-                      disabled={isLoading}
-                    />
-                    <span className="checkbox-custom"></span>
-                    <span className="checkbox-text">Запомнить меня</span>
-                  </label>
-                  
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="forgot-password"
-                    disabled={isLoading}
-                  >
-                    Забыли пароль?
-                  </button>
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-block"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <span className="spinner"></span>
-                      Вход...
-                    </>
-                  ) : (
-                    'Войти'
-                  )}
-                </button>
-
-                <div className="form-footer">
-                  <p>
-                    Ещё нет аккаунта?{' '}
-                    <Link to="/register" className="link">
-                      Зарегистрироваться
-                    </Link>
-                  </p>
-                </div>
-              </form>
-            </div>
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">
+              Пароль
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="form-input"
+              required
+              disabled={loading}
+              autoComplete="current-password"
+            />
           </div>
+
+          <div className="form-options">
+            <label className="checkbox-label">
+              <input type="checkbox" />
+              <span>Запомнить меня</span>
+            </label>
+            <Link to="/forgot-password" className="forgot-password">
+              Забыли пароль?
+            </Link>
+          </div>
+
+          <button 
+            type="submit" 
+            className="btn btn-primary btn-block btn-login"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Вход в систему...
+              </>
+            ) : (
+              'Войти в аккаунт'
+            )}
+          </button>
+        </form>
+
+        {/* Разделитель */}
+        <div className="divider">
+          <span className="divider-text">или</span>
+        </div>
+
+        {/* Демо вход */}
+        <div className="demo-section">
+          <h3 className="demo-title">Быстрый тестовый вход</h3>
+          <p className="demo-subtitle">
+            Используйте для тестирования системы без регистрации
+          </p>
+          
+          <div className="demo-buttons">
+            <button 
+              type="button" 
+              className="btn btn-demo btn-demo-user"
+              onClick={() => handleDemoLogin('user')}
+              disabled={loading}
+            >
+              <span className="demo-icon">👤</span>
+              <div className="demo-button-content">
+                <span className="demo-button-title">Пользователь</span>
+                <span className="demo-button-subtitle">Обычный клиент клиники</span>
+              </div>
+            </button>
+            
+            <button 
+              type="button" 
+              className="btn btn-demo btn-demo-admin"
+              onClick={() => handleDemoLogin('admin')}
+              disabled={loading}
+            >
+              <span className="demo-icon">👑</span>
+              <div className="demo-button-content">
+                <span className="demo-button-title">Администратор</span>
+                <span className="demo-button-subtitle">Полный доступ к системе</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Ссылки */}
+        <div className="login-footer">
+          <p className="register-link">
+            Ещё нет аккаунта?{' '}
+            <Link to="/register" className="link">
+              Зарегистрироваться
+            </Link>
+          </p>
+          <p className="home-link">
+            <Link to="/" className="link">
+              ← Вернуться на главную
+            </Link>
+          </p>
         </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default LoginPage;

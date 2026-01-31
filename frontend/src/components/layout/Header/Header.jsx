@@ -1,41 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import './Header.css';
+import API from '../../../config/api';
 
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout, loading } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [userName, setUserName] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
   const menuRef = useRef(null);
   const burgerRef = useRef(null);
-
-  // Проверка авторизации и роли
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      const user = localStorage.getItem('user');
-      
-      if (token && user) {
-        setIsLoggedIn(true);
-        const userData = JSON.parse(user);
-        setUserRole(userData.role);
-        setUserName(userData.firstName || 'Пользователь');
-      } else {
-        setIsLoggedIn(false);
-        setUserRole(null);
-        setUserName('');
-      }
-    };
-
-    checkAuth();
-    
-    window.addEventListener('authChange', checkAuth);
-    return () => window.removeEventListener('authChange', checkAuth);
-  }, [location]);
 
   // Эффект при скролле
   useEffect(() => {
@@ -94,30 +70,41 @@ const Header = () => {
     setIsMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setIsLoggedIn(false);
-    setUserRole(null);
-    setUserName('');
-    setIsMenuOpen(false);
-    navigate('/');
-    window.dispatchEvent(new Event('authChange'));
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(`${API.BASE_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      logout();
+      setIsMenuOpen(false);
+      navigate('/');
+    }
   };
 
   // Определяем какие ссылки показывать
   const getLinksForUser = () => {
-    if (!isLoggedIn) {
+    if (!user) {
       // Ссылки для гостей
       return [
         { to: "/", label: "Главная", icon: "🏠" },
-       
+        { to: "/vets", label: "Ветеринары", icon: "👨‍⚕️" },
       ];
     }
 
-    if (userRole === 'admin') {
+    if (user.role === 'admin') {
       // Ссылки ТОЛЬКО для админа
       return [
+        { to: "/", label: "Главная", icon: "🏠" },
         { to: "/dashboard", label: "Панель управления", icon: "📊" },
         { to: "/admin/animals", label: "Животные", icon: "🐕" },
         { to: "/admin/appointments", label: "Записи", icon: "📋" },
@@ -130,6 +117,7 @@ const Header = () => {
       { to: "/booking", label: "Запись", icon: "📅" },
       { to: "/animals", label: "Мои питомцы", icon: "🐕" },
       { to: "/appointments", label: "Мои записи", icon: "📋" },
+      { to: "/vets", label: "Ветеринары", icon: "👨‍⚕️" },
     ];
   };
 
@@ -166,9 +154,33 @@ const Header = () => {
     ));
   };
 
+  // Показываем загрузку если еще грузится
+  if (loading) {
+    return (
+      <>
+        <header className="header">
+          <div className="header-container">
+            <div className="header-content">
+              <div className="logo">
+                <Link to="/" className="logo-link">
+                  <span className="logo-icon">🐾</span>
+                  <span className="logo-text">VetClinic</span>
+                </Link>
+              </div>
+              <div className="desktop-auth">
+                <span className="loading-text">Загрузка...</span>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="header-spacer"></div>
+      </>
+    );
+  }
+
   return (
     <>
-      <header className={`header ${isScrolled ? 'scrolled' : ''} ${userRole === 'admin' ? 'admin-header' : ''}`}>
+      <header className={`header ${isScrolled ? 'scrolled' : ''} ${user?.role === 'admin' ? 'admin-header' : ''}`}>
         <div className="header-container">
           <div className="header-content">
             {/* Логотип */}
@@ -176,7 +188,7 @@ const Header = () => {
               <Link to="/" className="logo-link">
                 <span className="logo-icon">🐾</span>
                 <span className="logo-text">VetClinic</span>
-                {userRole === 'admin' && (
+                {user?.role === 'admin' && (
                   <span className="admin-label">ADMIN</span>
                 )}
               </Link>
@@ -189,11 +201,11 @@ const Header = () => {
 
             {/* Десктопные кнопки авторизации */}
             <div className="desktop-auth">
-              {isLoggedIn ? (
+              {user ? (
                 <div className="user-section">
                   <span className="user-greeting">
-                    Привет, <span className="user-name">{userName}</span>
-                    {userRole === 'admin' && (
+                    Привет, <span className="user-name">{user.name}</span>
+                    {user.role === 'admin' && (
                       <span className="admin-badge">👑</span>
                     )}
                   </span>
@@ -243,17 +255,17 @@ const Header = () => {
               </div>
 
               <div className="mobile-user-section">
-                {isLoggedIn ? (
+                {user ? (
                   <>
                     <div className="mobile-user-info">
                       <div className="mobile-user-greeting">
-                        Привет, <span className="mobile-user-name">{userName}</span>
-                        {userRole === 'admin' && (
+                        Привет, <span className="mobile-user-name">{user.name}</span>
+                        {user.role === 'admin' && (
                           <span className="mobile-admin-badge">👑 Админ</span>
                         )}
                       </div>
                       <div className="user-role">
-                        {userRole === 'admin' ? 'Администратор' : 'Пользователь'}
+                        {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
                       </div>
                     </div>
                     <button className="mobile-btn mobile-btn-logout" onClick={handleLogout}>

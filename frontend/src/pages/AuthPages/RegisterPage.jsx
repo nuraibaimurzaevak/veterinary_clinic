@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import API from '../../config/api';
 import './RegisterPage.css';
-
-const API_URL = 'http://localhost:5000/api';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -79,7 +78,8 @@ const Register = () => {
       setServerError('');
       
       try {
-        const response = await fetch(`${API_URL}/auth/register`, {
+        // ✅ ИСПОЛЬЗУЕМ API.AUTH.REGISTER из конфига
+        const response = await fetch(API.AUTH.REGISTER, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

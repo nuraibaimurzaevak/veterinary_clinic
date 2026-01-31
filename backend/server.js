@@ -7,17 +7,38 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// ==================== CORS НАСТРОЙКИ ====================
+// Исправлено для вашего фронтенда на Netlify
+const corsOptions = {
+  origin: [
+    'https://monumental-hotteok-00260b.netlify.app', // Ваш фронтенд
+    'http://localhost:3000', // Для локальной разработки
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// Подключение к MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/vetclinic', {
+// Для preflight запросов
+app.options('*', cors(corsOptions));
+
+// ==================== ПОДКЛЮЧЕНИЕ К MONGODB ====================
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/vetclinic';
+
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
 .then(() => console.log('✅ MongoDB подключена'))
-.catch(err => console.log('❌ MongoDB ошибка:', err.message));
+.catch(err => {
+  console.log('❌ MongoDB ошибка:', err.message);
+  console.log('ℹ️ Проверьте переменную окружения MONGODB_URI');
+});
+
+// ==================== МОДЕЛИ ====================
 
 // Модель пользователя
 const userSchema = new mongoose.Schema({
@@ -119,8 +140,6 @@ const vetSchema = new mongoose.Schema({
 });
 const Vet = mongoose.model('Vet', vetSchema);
 
-// Добавьте эту модель после модели Vet в server.js:
-
 // Модель записи на прием
 const appointmentSchema = new mongoose.Schema({
   animal: {
@@ -170,6 +189,8 @@ const appointmentSchema = new mongoose.Schema({
 });
 const Appointment = mongoose.model('Appointment', appointmentSchema);
 
+// ==================== MIDDLEWARE ====================
+
 // Аутентификация
 const authenticateToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -179,7 +200,7 @@ const authenticateToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vetclinic_secret_2024');
     req.user = await User.findById(decoded.id).select('-password');
     
     if (!req.user) {
@@ -200,6 +221,18 @@ const isAdmin = (req, res, next) => {
     return res.status(403).json({ success: false, message: 'Требуются права администратора' });
   }
 };
+
+// ==================== РОУТЫ ====================
+
+// Health check для Render
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'VetClinic API',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
 
 // Регистрация пользователя
 app.post('/api/auth/register', async (req, res) => {
@@ -227,7 +260,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET || 'vetclinic_secret_2024',
       { expiresIn: '30d' }
     );
 
@@ -280,7 +313,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET || 'vetclinic_secret_2024',
       { expiresIn: '30d' }
     );
 
@@ -313,11 +346,22 @@ app.post('/api/auth/login', async (req, res) => {
 // Получение профиля
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
+    const userResponse = {
+      id: req.user._id,
+      email: req.user.email,
+      firstName: req.user.firstName,
+      lastName: req.user.lastName,
+      phone: req.user.phone,
+      role: req.user.role,
+      createdAt: req.user.createdAt
+    };
+    
     res.json({
       success: true,
-      user: req.user
+      user: userResponse
     });
   } catch (error) {
+    console.error('Profile error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Ошибка сервера' 
@@ -336,7 +380,10 @@ app.get('/api/animals/user', authenticateToken, async (req, res) => {
     
     const animals = await Animal.find(query).populate('createdBy', 'firstName lastName');
     
-    res.json(animals);
+    res.json({
+      success: true,
+      animals
+    });
   } catch (error) {
     console.error('Error getting animals:', error);
     res.status(500).json({ 
@@ -429,7 +476,10 @@ app.get('/api/animals/all', authenticateToken, isAdmin, async (req, res) => {
   try {
     const animals = await Animal.find().populate('createdBy', 'firstName lastName email');
     
-    res.json(animals);
+    res.json({
+      success: true,
+      animals
+    });
   } catch (error) {
     console.error('Error getting all animals:', error);
     res.status(500).json({ 
@@ -443,17 +493,42 @@ app.get('/api/animals/all', authenticateToken, isAdmin, async (req, res) => {
 
 // Получить всех активных ветеринаров (публичный)
 app.get('/api/vets', async (req, res) => {
+  console.log('=== ЗАПРОС К /api/vets ===');
+  
   try {
+    console.log('1. Проверяем подключение к MongoDB...');
+    console.log('Состояние подключения:', mongoose.connection.readyState);
+    // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ MongoDB НЕ подключена!');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'База данных не подключена' 
+      });
+    }
+    
+    console.log('2. Ищем ветеринаров...');
     const vets = await Vet.find({ isActive: true })
       .select('-__v -createdAt -updatedAt -createdBy')
       .sort({ name: 1 });
     
-    res.json(vets);
+    console.log('3. Найдено ветеринаров:', vets.length);
+    
+    res.json({
+      success: true,
+      vets: vets,
+      count: vets.length
+    });
+    
   } catch (error) {
-    console.error('Error fetching vets:', error);
+    console.error('❌ ОШИБКА в /api/vets:', error);
+    console.error('Детали ошибки:', error.message);
+    console.error('Стек ошибки:', error.stack);
+    
     res.status(500).json({ 
       success: false, 
-      message: 'Ошибка получения списка ветеринаров' 
+      message: 'Ошибка получения списка ветеринаров: ' + error.message 
     });
   }
 });
@@ -471,7 +546,10 @@ app.get('/api/vets/:id', async (req, res) => {
       });
     }
     
-    res.json(vet);
+    res.json({
+      success: true,
+      vet
+    });
   } catch (error) {
     console.error('Error fetching vet:', error);
     res.status(500).json({ 
@@ -489,7 +567,10 @@ app.get('/api/vets/admin/all', authenticateToken, isAdmin, async (req, res) => {
       .populate('createdBy', 'firstName lastName email')
       .sort({ createdAt: -1 });
     
-    res.json(vets);
+    res.json({
+      success: true,
+      vets
+    });
   } catch (error) {
     console.error('Error fetching admin vets:', error);
     res.status(500).json({ 
@@ -601,8 +682,6 @@ app.delete('/api/vets/:id', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-// Добавьте этот эндпоинт в server.js перед главной страницей:
-
 // Получить всех пользователей (только для админа)
 app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
   try {
@@ -610,7 +689,10 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
       .select('-password -__v')
       .sort({ createdAt: -1 });
     
-    res.json(users);
+    res.json({
+      success: true,
+      users
+    });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ 
@@ -620,8 +702,7 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-
-
+// ==================== API ДЛЯ ЗАПИСЕЙ ====================
 
 // 1. Получить все записи пользователя
 app.get('/api/appointments/user', authenticateToken, async (req, res) => {
@@ -639,7 +720,10 @@ app.get('/api/appointments/user', authenticateToken, async (req, res) => {
       .populate('createdBy', 'firstName lastName email')
       .sort({ date: -1, time: -1 });
     
-    res.json(appointments);
+    res.json({
+      success: true,
+      appointments
+    });
   } catch (error) {
     console.error('Error fetching appointments:', error);
     res.status(500).json({ 
@@ -672,7 +756,10 @@ app.get('/api/appointments/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    res.json(appointment);
+    res.json({
+      success: true,
+      appointment
+    });
   } catch (error) {
     console.error('Error fetching appointment:', error);
     res.status(500).json({ 
@@ -951,6 +1038,7 @@ app.get('/api/appointments/vet/:vetId/availability', async (req, res) => {
     }
     
     res.json({
+      success: true,
       vet: {
         name: vet.name,
         specialization: vet.specialization,
@@ -973,26 +1061,39 @@ app.get('/api/appointments/vet/:vetId/availability', async (req, res) => {
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
     let animalQuery = {};
+    let appointmentQuery = {};
     let userQuery = {};
     
     if (req.user.role !== 'admin') {
       animalQuery.createdBy = req.user._id;
+      appointmentQuery.createdBy = req.user._id;
     }
     
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     const totalAnimals = await Animal.countDocuments(animalQuery);
+    const todayAppointments = await Appointment.countDocuments({
+      ...appointmentQuery,
+      date: { $gte: today },
+      status: { $in: ['pending', 'confirmed'] }
+    });
     const totalUsers = await User.countDocuments(userQuery);
     const totalVets = await Vet.countDocuments({ isActive: true });
     
     res.json({
+      success: true,
       stats: [
         { title: 'Всего животных', value: totalAnimals.toString(), change: '+0%', icon: '🐕' },
-        { title: 'Записей сегодня', value: '0', change: '+0%', icon: '📅' },
+        { title: 'Записей сегодня', value: todayAppointments.toString(), change: '+0%', icon: '📅' },
         { title: 'Активных пользователей', value: totalUsers.toString(), change: '+0%', icon: '👥' },
         { title: 'Ветеринаров', value: totalVets.toString(), change: '+0', icon: '👨‍⚕️' }
       ]
     });
   } catch (error) {
+    console.error('Dashboard stats error:', error);
     res.json({
+      success: true,
       stats: [
         { title: 'Всего животных', value: '0', change: '+0%', icon: '🐕' },
         { title: 'Записей сегодня', value: '0', change: '+0%', icon: '📅' },
@@ -1004,10 +1105,11 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
 });
 
 // Главная страница
-// Главная страница
 app.get('/', (req, res) => {
   res.json({
     message: 'Vet Clinic API',
+    version: '1.0.0',
+    frontend: 'https://monumental-hotteok-00260b.netlify.app',
     endpoints: {
       auth: {
         register: 'POST /api/auth/register',
@@ -1019,6 +1121,15 @@ app.get('/', (req, res) => {
         addAnimal: 'POST /api/animals',
         deleteAnimal: 'DELETE /api/animals/:id',
         allAnimals: 'GET /api/animals/all (admin only)'
+      },
+      appointments: {
+        userAppointments: 'GET /api/appointments/user',
+        createAppointment: 'POST /api/appointments',
+        getAppointment: 'GET /api/appointments/:id',
+        updateAppointment: 'PUT /api/appointments/:id',
+        cancelAppointment: 'PUT /api/appointments/:id/cancel',
+        deleteAppointment: 'DELETE /api/appointments/:id (admin only)',
+        availability: 'GET /api/appointments/vet/:vetId/availability?date=YYYY-MM-DD'
       },
       vets: {
         getVets: 'GET /api/vets',
@@ -1038,28 +1149,30 @@ app.get('/', (req, res) => {
   });
 });
 
-// Запуск сервера
+// Обработка 404
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Эндпоинт не найден',
+    availableEndpoints: '/'
+  });
+});
+
+// ==================== ЗАПУСК СЕРВЕРА ====================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
+  console.log('====================================');
   console.log(`✅ Сервер запущен на порту ${PORT}`);
   console.log(`🌐 API доступно по адресу: http://localhost:${PORT}`);
-  console.log('\n📋 Доступные эндпоинты:');
-  console.log('  👥 Аутентификация:');
-  console.log('    POST /api/auth/register - Регистрация');
-  console.log('    POST /api/auth/login - Вход');
-  console.log('    GET /api/auth/me - Профиль');
-  console.log('  🐕 Животные:');
-  console.log('    GET /api/animals/user - Животные пользователя');
-  console.log('    POST /api/animals - Добавить животное');
-  console.log('    DELETE /api/animals/:id - Удалить животное');
-  console.log('    GET /api/animals/all - Все животные (admin)');
-  console.log('  👨‍⚕️ Ветеринары:');
-  console.log('    GET /api/vets - Все ветеринары');
-  console.log('    GET /api/vets/:id - Ветеринар по ID');
-  console.log('    GET /api/vets/admin/all - Все ветеринары (admin)');
-  console.log('    POST /api/vets - Создать ветеринара (admin)');
-  console.log('    PUT /api/vets/:id - Обновить ветеринара (admin)');
-  console.log('    DELETE /api/vets/:id - Удалить ветеринара (admin)');
-  console.log('  📊 Дашборд:');
-  console.log('    GET /api/dashboard/stats - Статистика');
+  console.log(`🌐 Ваш фронтенд: https://monumental-hotteok-00260b.netlify.app`);
+  console.log('====================================\n');
+  
+  console.log('📋 Важные эндпоинты:');
+  console.log('  📊 Health check: GET /api/health');
+  console.log('  👤 Регистрация: POST /api/auth/register');
+  console.log('  🔐 Вход: POST /api/auth/login');
+  console.log('  🐕 Мои животные: GET /api/animals/user');
+  console.log('  📅 Мои записи: GET /api/appointments/user');
+  console.log('  👨‍⚕️ Ветеринары: GET /api/vets');
+  console.log('\n====================================');
 });

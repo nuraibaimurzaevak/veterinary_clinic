@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API from '../../../config/api'; // ← Добавляем импорт конфига API
 import './AdminVetsPage.css';
-
-const API_URL = 'http://localhost:5000/api';
 
 const AdminVetsPage = () => {
   const navigate = useNavigate();
@@ -73,7 +72,8 @@ const AdminVetsPage = () => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/vets/admin/all`, {
+      // Используем API.VETS.ADMIN_ALL из конфига
+      const response = await fetch(API.VETS.ADMIN_ALL, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -177,7 +177,7 @@ const AdminVetsPage = () => {
     }
   };
 
-  // Добавление ветеринара
+  // Добавление ветеринара с использованием конфига API
   const handleAddVet = async () => {
     if (!vetForm.name.trim()) {
       alert('Введите ФИО ветеринара');
@@ -186,7 +186,9 @@ const AdminVetsPage = () => {
 
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/vets`, {
+      
+      // Используем API.VETS.CREATE из конфига
+      const response = await fetch(API.VETS.CREATE, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -243,10 +245,13 @@ const AdminVetsPage = () => {
     setShowEditModal(true);
   };
 
+  // Обновление ветеринара с использованием конфига API
   const handleUpdateVet = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/vets/${selectedVet._id}`, {
+      
+      // Используем API.VETS.BY_ID из конфига
+      const response = await fetch(API.VETS.BY_ID(selectedVet._id), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -273,7 +278,7 @@ const AdminVetsPage = () => {
     }
   };
 
-  // Удаление ветеринара
+  // Удаление ветеринара с использованием конфига API
   const handleDeleteClick = (vet) => {
     setVetToDelete(vet);
     setShowDeleteModal(true);
@@ -282,7 +287,9 @@ const AdminVetsPage = () => {
   const confirmDelete = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/vets/${vetToDelete._id}`, {
+      
+      // Используем API.VETS.BY_ID для удаления
+      const response = await fetch(API.VETS.BY_ID(vetToDelete._id), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
