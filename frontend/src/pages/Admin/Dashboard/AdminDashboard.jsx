@@ -348,7 +348,7 @@ const AdminDashboard = () => {
   };
 
   const handleViewAll = () => {
-    navigate('/appointments');
+    navigate('/admin/appointments');
   };
 
   const handleRefresh = () => {

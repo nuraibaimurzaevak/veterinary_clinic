@@ -5,7 +5,7 @@ require('dotenv').config();
 
 async function createAdmin() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/vetclinic');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://nuraibaimurzaevak_db_user:oAWq7QMUZjQSsShE@cluster0.6a8t8nm.mongodb.net/?appName=Cluster0');
     
     const User = mongoose.model('User', new mongoose.Schema({
       email: String,
@@ -39,7 +39,7 @@ async function createAdmin() {
 
     console.log('✅ Администратор создан успешно!');
     console.log('📧 Email: nurai.baimurzaevak@gmail.com');
-    console.log('🔑 Пароль: password123');
+    console.log('🔑 Пароль: 123Admin');
     
     process.exit(0);
   } catch (error) {

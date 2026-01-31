@@ -8,6 +8,7 @@
   --text-color: #333333;
   --text-light: #666666;
   --header-height: 70px;
+  --header-height-mobile: 60px;
 }
 
 /* Хедер */
@@ -19,6 +20,7 @@
   z-index: 1000;
   border-bottom: 1px solid var(--accent-color);
   height: var(--header-height);
+  transition: height 0.3s ease;
 }
 
 .header-container {
@@ -32,8 +34,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  position: relative;
   height: 100%;
 }
 
@@ -61,13 +61,24 @@
   letter-spacing: -0.5px;
 }
 
-/* Бургер меню */
+.admin-label {
+  background: var(--primary-color);
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Бургер меню - УЛУЧШЕННАЯ ВИДИМОСТЬ */
 .menu-toggle {
   display: none;
   flex-direction: column;
   justify-content: space-between;
-  width: 30px;
-  height: 21px;
+  width: 32px;
+  height: 24px;
   background: none;
   border: none;
   cursor: pointer;
@@ -87,6 +98,7 @@
 
 .menu-toggle.active .menu-toggle-line:nth-child(1) {
   transform: rotate(45deg) translate(6px, 6px);
+  background: var(--primary-color);
 }
 
 .menu-toggle.active .menu-toggle-line:nth-child(2) {
@@ -95,10 +107,11 @@
 
 .menu-toggle.active .menu-toggle-line:nth-child(3) {
   transform: rotate(-45deg) translate(6px, -6px);
+  background: var(--primary-color);
 }
 
-/* Навигация */
-.nav {
+/* Десктопная навигация */
+.desktop-nav {
   display: flex;
   gap: 20px;
   align-items: center;
@@ -121,76 +134,30 @@
   background: rgba(118, 136, 186, 0.05);
 }
 
-.nav-link::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 2px;
-  background: var(--primary-color);
-  transition: width 0.3s ease;
+.nav-link.active {
+  color: var(--primary-color);
+  font-weight: 600;
+  background: rgba(118, 136, 186, 0.1);
 }
 
-.nav-link:hover::after {
-  width: 70%;
-}
-
-/* Кнопки как ссылки в навигации */
-.nav-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 16px;
-  background: var(--primary-color);
-  color: var(--white) !important;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  text-align: center;
-  white-space: nowrap;
-  margin: 0;
-  font-family: inherit;
-}
-
-.nav-btn:hover {
-  background: #6574A5;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(118, 136, 186, 0.3);
-  color: var(--white) !important;
-}
-
-.nav-btn::after {
-  display: none !important;
-}
-
-.nav-btn-outline {
-  background: transparent;
-  border: 2px solid var(--primary-color);
-  color: var(--primary-color) !important;
-}
-
-.nav-btn-outline:hover {
-  background: var(--primary-color);
-  color: var(--white) !important;
-}
-
-/* Кнопки авторизации (старый стиль для десктопа) */
-.auth-buttons {
+/* Десктопные кнопки авторизации */
+.desktop-auth {
   display: flex;
-  gap: 12px;
   align-items: center;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .user-greeting {
   color: var(--text-light);
   font-size: 14px;
-  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .user-name {
@@ -198,7 +165,70 @@
   color: var(--primary-color);
 }
 
-/* Затемнение фона - ИСПРАВЛЕНО */
+.admin-badge {
+  font-size: 16px;
+  margin-left: 5px;
+}
+
+.auth-section {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Общие стили кнопок */
+.btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  font-family: inherit;
+}
+
+.btn-login {
+  background: transparent;
+  color: var(--primary-color);
+  border: 2px solid var(--primary-color);
+}
+
+.btn-login:hover {
+  background: var(--primary-color);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-register {
+  background: var(--primary-color);
+  color: white;
+  border: 2px solid var(--primary-color);
+}
+
+.btn-register:hover {
+  background: #6574A5;
+  transform: translateY(-2px);
+}
+
+.btn-logout {
+  background: transparent;
+  color: var(--text-light);
+  border: 2px solid var(--accent-color);
+}
+
+.btn-logout:hover {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
+}
+
+/* Отступ для фиксированного header */
+.header-spacer {
+  height: var(--header-height);
+}
+
+/* Мобильное меню */
 .menu-overlay {
   position: fixed;
   top: 0;
@@ -206,168 +236,290 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 998; /* Меньше чем у меню */
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s;
+  z-index: 999;
+  backdrop-filter: blur(2px);
 }
 
-.menu-overlay.active {
-  opacity: 1;
-  visibility: visible;
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--white);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
+}
+
+.menu-overlay + .mobile-menu {
+  transform: translateX(0);
+}
+
+.mobile-menu-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Мобильные ссылки навигации */
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.mobile-nav-link:hover {
+  background: rgba(118, 136, 186, 0.1);
+  color: var(--primary-color);
+}
+
+.mobile-nav-link.active {
+  background: rgba(118, 136, 186, 0.15);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.nav-icon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+}
+
+/* Мобильная секция пользователя */
+.mobile-user-section {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--accent-color);
+}
+
+.mobile-user-info {
+  margin-bottom: 20px;
+}
+
+.mobile-user-greeting {
+  font-size: 16px;
+  color: var(--text-color);
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mobile-user-name {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.mobile-admin-badge {
+  background: var(--primary-color);
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.user-role {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+/* Мобильные кнопки */
+.mobile-auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  font-family: inherit;
+}
+
+.mobile-btn-login {
+  background: transparent;
+  color: var(--primary-color);
+  border: 2px solid var(--primary-color);
+}
+
+.mobile-btn-login:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.mobile-btn-register {
+  background: var(--primary-color);
+  color: white;
+  border: 2px solid var(--primary-color);
+}
+
+.mobile-btn-register:hover {
+  background: #6574A5;
+}
+
+.mobile-btn-logout {
+  background: transparent;
+  color: var(--text-light);
+  border: 2px solid var(--accent-color);
+  width: 100%;
+}
+
+.mobile-btn-logout:hover {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
 }
 
 /* ============ МОБИЛЬНАЯ ВЕРСИЯ ============ */
 @media (max-width: 768px) {
+  .header {
+    height: var(--header-height-mobile);
+  }
+  
+  .header-spacer {
+    height: var(--header-height-mobile);
+  }
+  
+  /* Скрываем десктопные элементы */
+  .desktop-nav, .desktop-auth {
+    display: none !important;
+  }
+  
+  /* Показываем бургер меню */
   .menu-toggle {
     display: flex;
   }
-
-  /* Мобильная навигация - ИСПРАВЛЕНО */
-  .nav {
-    position: fixed;
-    top: 0;
-    right: -280px; /* Ширина меню */
-    bottom: 0;
-    width: 280px;
-    background: var(--white);
-    flex-direction: column;
-    padding: 80px 25px 25px;
-    gap: 0;
-    transition: right 0.3s ease;
-    z-index: 1001; /* Выше чем overlay */
-    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
-    align-items: stretch;
-    overflow-y: auto; /* Добавляем скролл если нужно */
+  
+  /* Уменьшаем логотип на мобильных */
+  .logo-icon {
+    font-size: 24px;
   }
-
-  .nav.active {
-    right: 0;
+  
+  .logo-text {
+    font-size: 20px;
   }
-
-  .nav-link, .nav-btn {
-    width: 100%;
-    padding: 14px 16px;
-    margin: 4px 0;
-    border-bottom: 1px solid rgba(224, 224, 222, 0.5);
-    font-size: 16px;
-    text-align: left;
-    display: block;
-    border-radius: 8px;
+  
+  /* Улучшаем видимость бургера на маленьких экранах */
+  @media (max-width: 480px) {
+    .menu-toggle {
+      width: 28px;
+      height: 21px;
+    }
+    
+    .header-container {
+      padding: 0 15px;
+    }
+    
+    .mobile-menu {
+      width: 85%;
+      max-width: 280px;
+    }
   }
-
-  .nav-link:last-child, .nav-btn:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-  }
-
-  /* Фиксируем последнюю кнопку */
-  .nav-btn:last-of-type {
-    margin-top: auto; /* Прижимаем к низу если нужно */
-  }
-
-  .nav-link:hover, .nav-btn:hover {
-    background: rgba(118, 136, 186, 0.1);
-  }
-
-  .nav-link::after, .nav-btn::after {
-    display: none;
-  }
-
-  /* Скрываем десктопные кнопки авторизации */
-  .auth-buttons {
-    display: none;
+  
+  /* Для очень маленьких экранов */
+  @media (max-width: 360px) {
+    .logo-text {
+      font-size: 18px;
+    }
+    
+    .mobile-menu {
+      width: 100%;
+      max-width: 100%;
+    }
   }
 }
 
-/* Планшетная версия */
-@media (max-width: 992px) {
-  .nav {
-    gap: 15px;
+/* Десктопная версия - скрываем мобильные элементы */
+@media (min-width: 769px) {
+  .menu-toggle, .menu-overlay, .mobile-menu {
+    display: none !important;
   }
-
-  .nav-link, .nav-btn {
-    font-size: 14px;
-    padding: 8px 12px;
-  }
-
-  .auth-buttons {
-    gap: 8px;
+  
+  .desktop-nav, .desktop-auth {
+    display: flex !important;
   }
 }
 
 /* Анимации */
-@keyframes slideIn {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(20px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
   }
 }
 
-.nav-link, .nav-btn {
-  animation: slideIn 0.3s ease forwards;
+.menu-overlay {
+  animation: fadeIn 0.3s ease;
 }
 
-/* Активная ссылка */
-.nav-link.active {
+/* Для шапки админа */
+.admin-header {
+  background: linear-gradient(135deg, #7688BA 0%, #6574A5 100%);
+  border-bottom: none;
+}
+
+.admin-header .logo-text,
+.admin-header .nav-link,
+.admin-header .user-greeting {
+  color: white;
+}
+
+.admin-header .nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-header .nav-link.active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.admin-header .btn-login,
+.admin-header .btn-logout {
+  border-color: white;
+  color: white;
+}
+
+.admin-header .btn-login:hover,
+.admin-header .btn-logout:hover {
+  background: white;
   color: var(--primary-color);
-  font-weight: 600;
-  background: rgba(118, 136, 186, 0.1);
 }
 
-.nav-link.active::after {
-  width: 70%;
+.admin-header .btn-register {
+  background: white;
+  color: var(--primary-color);
+  border-color: white;
 }
 
-/* Десктопная версия */
-@media (min-width: 769px) {
-  .menu-toggle {
-    display: none !important;
-  }
-  
-  .nav {
-    display: flex !important;
-    position: static !important;
-    width: auto !important;
-    background: none !important;
-    box-shadow: none !important;
-    flex-direction: row !important;
-    padding: 0 !important;
-    align-items: center !important;
-  }
-  
-  .nav-link, .nav-btn {
-    padding: 8px 16px !important;
-    border-bottom: none !important;
-    font-size: 15px !important;
-    text-align: center !important;
-    width: auto !important;
-    margin: 0 !important;
-  }
-  
-  .auth-buttons {
-    display: none !important; /* Скрываем старые кнопки */
-  }
-  
-  .menu-overlay {
-    display: none !important;
-  }
-}
-
-/* Для очень маленьких экранов */
-@media (max-width: 480px) {
-  .nav {
-    width: 100%;
-    max-width: 280px;
-    padding: 70px 20px 20px;
-  }
-  
-  /* Убедимся что кнопки видны */
-  .nav-btn {
-    padding: 12px 16px !important;
-  }
+.admin-header .btn-register:hover {
+  background: rgba(255, 255, 255, 0.9);
 }
