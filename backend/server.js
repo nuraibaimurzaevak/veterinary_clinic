@@ -14,7 +14,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'https://silly-pastelito-5cb41f.netlify.app',
+      'https://veterinary-clinic-front.onrender.com',
       'http://localhost:3000',
       'http://localhost:5173',
       'http://127.0.0.1:3000',
