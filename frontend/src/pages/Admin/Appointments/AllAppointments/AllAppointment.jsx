@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../../../config/api'; // ← Добавляем импорт конфига API
-import './AllAppointment.css'; // Используем те же стили
+import api from '../../../../api/axiosConfig';
+import API from '../../../../api/api';
+import './AllAppointment.css';
 
 const AppointmentsAdmin = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -35,352 +37,151 @@ const AppointmentsAdmin = () => {
   });
   const [vets, setVets] = useState([]);
   const [users, setUsers] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    pages: 0
-  });
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Получение текущего пользователя
-  const getCurrentUser = () => {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
-  };
-
-  // Получение токена
-  const getAuthToken = () => {
-    return localStorage.getItem('token');
-  };
-
-  // API запрос с использованием вашего конфига API
-  const apiRequest = async (endpoint, options = {}) => {
-    const token = getAuthToken();
-    const user = getCurrentUser();
-    
-    if (!user || !token) {
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) {
       navigate('/login');
-      throw new Error('Требуется авторизация');
-    }
-
-    // Проверка прав администратора
-    if (user.role !== 'admin') {
+    } else if (user.role !== 'admin') {
       navigate('/appointments');
-      throw new Error('Требуются права администратора');
+    } else {
+      loadAllAppointments();
+      loadVets();
+      loadUsers();
     }
+  }, [navigate]);
 
-    const defaultOptions = {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
-    };
-
-    try {
-      console.log(`Отправка запроса на: ${API.BASE_URL}${endpoint}`);
-      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
-      
-      if (response.status === 401) {
-        localStorage.clear();
-        navigate('/login');
-        throw new Error('Сессия истекла');
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('API Error:', error);
-      throw error;
-    }
-  };
-
-  // Загрузка всех записей с использованием вашего конфига
-  const loadAllAppointments = async (page = 1) => {
+  const loadAllAppointments = async () => {
     setIsLoading(true);
+    setError('');
+    
     try {
-      // Используем API.APPOINTMENTS.USER из конфига
-      const data = await apiRequest('/appointments/user');
+      const response = await api.get(API.APPOINTMENTS.USER || '/api/appointments/user');
       
-      console.log('Получены все записи:', data);
+      let appointmentsData = [];
       
-      if (data && Array.isArray(data)) {
-        setAppointments(data);
-        
-        // Рассчитываем статистику
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        setStats({
-          total: data.length,
-          pending: data.filter(a => a.status === 'pending').length,
-          confirmed: data.filter(a => a.status === 'confirmed').length,
-          completed: data.filter(a => a.status === 'completed').length,
-          cancelled: data.filter(a => a.status === 'cancelled').length,
-          today: data.filter(a => {
+      if (Array.isArray(response.data)) {
+        appointmentsData = response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        if (Array.isArray(response.data.appointments)) {
+          appointmentsData = response.data.appointments;
+        } else if (Array.isArray(response.data.data)) {
+          appointmentsData = response.data.data;
+        } else {
+          appointmentsData = response.data.appointments || [];
+        }
+      }
+      
+      if (!Array.isArray(appointmentsData)) {
+        appointmentsData = [];
+      }
+      
+      setAppointments(appointmentsData);
+      
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      setStats({
+        total: appointmentsData.length,
+        pending: appointmentsData.filter(a => a.status === 'pending').length,
+        confirmed: appointmentsData.filter(a => a.status === 'confirmed').length,
+        completed: appointmentsData.filter(a => a.status === 'completed').length,
+        cancelled: appointmentsData.filter(a => a.status === 'cancelled').length,
+        today: appointmentsData.filter(a => {
+          if (!a.date) return false;
+          try {
             const appointmentDate = new Date(a.date);
             return appointmentDate.toDateString() === today.toDateString();
-          }).length
-        });
-      } else {
-        console.error('Неверный формат ответа:', data);
-        setAppointments([]);
-      }
-      
+          } catch (e) {
+            return false;
+          }
+        }).length
+      });
+
     } catch (error) {
-      console.error('Ошибка загрузки записей:', error.message);
-      // Используем моковые данные для тестирования
-      loadMockData();
+      console.error('Ошибка загрузки записей:', error);
+      setError('Не удалось загрузить записи. Проверьте соединение с интернетом.');
+      setAppointments([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Загрузка списка ветеринаров с использованием вашего конфига
   const loadVets = async () => {
     try {
-      // Используем API.VETS.ALL из конфига
-      const response = await fetch(API.VETS.ALL);
-      const data = await response.json();
-      setVets(data);
+      const response = await api.get(API.VETS.ALL);
+      
+      let vetsData = [];
+      
+      if (Array.isArray(response.data)) {
+        vetsData = response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        if (Array.isArray(response.data.vets)) {
+          vetsData = response.data.vets;
+        } else if (Array.isArray(response.data.data)) {
+          vetsData = response.data.data;
+        } else {
+          vetsData = Object.values(response.data);
+        }
+      }
+      
+      if (!Array.isArray(vetsData)) {
+        vetsData = [];
+      }
+      
+      setVets(vetsData);
     } catch (error) {
       console.error('Ошибка загрузки ветеринаров:', error);
+      setVets([]);
     }
   };
 
-  // Загрузка списка пользователей с использованием вашего конфига
   const loadUsers = async () => {
     try {
-      // Используем API.USERS.ALL из конфига
-      const data = await apiRequest('/users');
-      setUsers(data);
+      const response = await api.get(API.USERS.ALL || '/api/users');
+      
+      let usersData = [];
+      
+      if (Array.isArray(response.data)) {
+        usersData = response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        if (Array.isArray(response.data.users)) {
+          usersData = response.data.users;
+        } else if (Array.isArray(response.data.data)) {
+          usersData = response.data.data;
+        } else {
+          usersData = Object.values(response.data);
+        }
+      }
+      
+      if (!Array.isArray(usersData)) {
+        usersData = [];
+      }
+      
+      setUsers(usersData);
     } catch (error) {
       console.error('Ошибка загрузки пользователей:', error);
+      setUsers([]);
     }
   };
 
-  // Моковые данные для тестирования
-  const loadMockData = () => {
-    console.log('Загрузка моковых данных...');
-    const mockAppointments = [
-      {
-        _id: '1',
-        animal: {
-          _id: '1',
-          name: 'Барсик',
-          type: 'Кот',
-          breed: 'Британская'
-        },
-        vet: {
-          _id: '1',
-          name: 'Петрова Анна Сергеевна',
-          specialization: 'Терапевт'
-        },
-        createdBy: {
-          _id: '1',
-          firstName: 'Иван',
-          lastName: 'Иванов',
-          email: 'ivan@example.com',
-          phone: '+79991234567'
-        },
-        service: 'Плановый осмотр',
-        date: '2024-02-15T00:00:00.000Z',
-        time: '10:30',
-        status: 'confirmed',
-        notes: 'Принести предыдущие анализы',
-        price: 2500,
-        createdAt: '2024-02-10T14:30:00.000Z'
-      },
-      {
-        _id: '2',
-        animal: {
-          _id: '2',
-          name: 'Рекс',
-          type: 'Собака',
-          breed: 'Немецкая овчарка'
-        },
-        vet: {
-          _id: '2',
-          name: 'Сидоров Дмитрий Алексеевич',
-          specialization: 'Хирург'
-        },
-        createdBy: {
-          _id: '2',
-          firstName: 'Мария',
-          lastName: 'Петрова',
-          email: 'maria@example.com',
-          phone: '+79991234568'
-        },
-        service: 'Швы после операции',
-        date: '2024-02-20T00:00:00.000Z',
-        time: '14:00',
-        status: 'pending',
-        notes: 'Не мочить швы',
-        price: 1800,
-        createdAt: '2024-02-12T09:15:00.000Z'
-      },
-      {
-        _id: '3',
-        animal: {
-          _id: '3',
-          name: 'Кеша',
-          type: 'Попугай',
-          breed: 'Волнистый'
-        },
-        vet: {
-          _id: '3',
-          name: 'Кузнецова Елена Владимировна',
-          specialization: 'Офтальмолог'
-        },
-        createdBy: {
-          _id: '1',
-          firstName: 'Иван',
-          lastName: 'Иванов',
-          email: 'ivan@example.com',
-          phone: '+79991234567'
-        },
-        service: 'Проблемы с глазами',
-        date: '2024-02-10T00:00:00.000Z',
-        time: '11:15',
-        status: 'completed',
-        notes: 'Повторный осмотр через неделю',
-        price: 3200,
-        createdAt: '2024-02-05T16:45:00.000Z'
-      },
-      {
-        _id: '4',
-        animal: {
-          _id: '4',
-          name: 'Мурка',
-          type: 'Кошка',
-          breed: 'Дворовая'
-        },
-        vet: {
-          _id: '4',
-          name: 'Иванова Ольга Михайловна',
-          specialization: 'Стоматолог'
-        },
-        createdBy: {
-          _id: '3',
-          firstName: 'Алексей',
-          lastName: 'Смирнов',
-          email: 'alex@example.com',
-          phone: '+79991234569'
-        },
-        service: 'Чистка зубов',
-        date: '2024-02-05T00:00:00.000Z',
-        time: '09:00',
-        status: 'cancelled',
-        notes: 'Отменено по инициативе клиента',
-        price: 4500,
-        createdAt: '2024-01-30T11:20:00.000Z'
-      },
-      {
-        _id: '5',
-        animal: {
-          _id: '5',
-          name: 'Шарик',
-          type: 'Собака',
-          breed: 'Лабрадор'
-        },
-        vet: {
-          _id: '1',
-          name: 'Петрова Анна Сергеевна',
-          specialization: 'Терапевт'
-        },
-        createdBy: {
-          _id: '2',
-          firstName: 'Мария',
-          lastName: 'Петрова',
-          email: 'maria@example.com',
-          phone: '+79991234568'
-        },
-        service: 'Вакцинация',
-        date: '2024-02-25T00:00:00.000Z',
-        time: '15:30',
-        status: 'confirmed',
-        notes: 'Перед вакцинацией не кормить 4 часа',
-        price: 1500,
-        createdAt: '2024-02-18T13:10:00.000Z'
-      }
-    ];
-    
-    const mockVets = [
-      { _id: '1', name: 'Петрова Анна Сергеевна', specialization: 'Терапевт' },
-      { _id: '2', name: 'Сидоров Дмитрий Алексеевич', specialization: 'Хирург' },
-      { _id: '3', name: 'Кузнецова Елена Владимировна', specialization: 'Офтальмолог' },
-      { _id: '4', name: 'Иванова Ольга Михайловна', specialization: 'Стоматолог' }
-    ];
-    
-    const mockUsers = [
-      { _id: '1', firstName: 'Иван', lastName: 'Иванов', email: 'ivan@example.com' },
-      { _id: '2', firstName: 'Мария', lastName: 'Петрова', email: 'maria@example.com' },
-      { _id: '3', firstName: 'Алексей', lastName: 'Смирнов', email: 'alex@example.com' }
-    ];
-    
-    setAppointments(mockAppointments);
-    setVets(mockVets);
-    setUsers(mockUsers);
-    
-    // Рассчитываем статистику для моковых данных
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    setStats({
-      total: mockAppointments.length,
-      pending: mockAppointments.filter(a => a.status === 'pending').length,
-      confirmed: mockAppointments.filter(a => a.status === 'confirmed').length,
-      completed: mockAppointments.filter(a => a.status === 'completed').length,
-      cancelled: mockAppointments.filter(a => a.status === 'cancelled').length,
-      today: mockAppointments.filter(a => {
-        const appointmentDate = new Date(a.date);
-        return appointmentDate.toDateString() === today.toDateString();
-      }).length
-    });
-  };
-
-  useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) {
-      console.log('Перенаправление на страницу входа...');
-      navigate('/login');
-    } else if (user.role !== 'admin') {
-      console.log('Перенаправление на обычную страницу записей...');
-      navigate('/appointments');
-    } else {
-      console.log('Администратор найден, загрузка данных...');
-      loadAllAppointments();
-      loadVets();
-      loadUsers();
-    }
-  }, []);
-
-  // Фильтрация записей
   const filteredAppointments = appointments.filter(appointment => {
-    // Фильтр по вкладке
     if (activeTab !== 'all' && appointment.status !== activeTab) return false;
-    
-    // Фильтр по статусу
     if (filterStatus !== 'all' && appointment.status !== filterStatus) return false;
     
-    // Фильтр по дате
     if (filterDate) {
-      const appointmentDate = new Date(appointment.date).toISOString().split('T')[0];
-      if (appointmentDate !== filterDate) return false;
+      try {
+        const appointmentDate = new Date(appointment.date).toISOString().split('T')[0];
+        if (appointmentDate !== filterDate) return false;
+      } catch (e) {
+        return false;
+      }
     }
     
-    // Фильтр по ветеринару
     if (filterVet !== 'all' && appointment.vet?._id !== filterVet) return false;
-    
-    // Фильтр по пользователю
     if (filterUser !== 'all' && appointment.createdBy?._id !== filterUser) return false;
     
-    // Поиск
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const animalName = appointment.animal?.name?.toLowerCase() || '';
@@ -401,35 +202,20 @@ const AppointmentsAdmin = () => {
     return true;
   });
 
-  // Форматирование даты
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Неверная дата';
-      
       return date.toLocaleDateString('ru-RU', {
-        weekday: 'short',
         day: 'numeric',
-        month: 'long',
+        month: 'short',
         year: 'numeric'
       });
     } catch (error) {
-      console.error('Ошибка форматирования даты:', error);
       return 'Неверная дата';
     }
   };
 
-  // Форматирование времени
-  const formatDateTime = (dateString, timeString) => {
-    try {
-      const date = new Date(dateString);
-      return `${formatDate(dateString)} в ${timeString}`;
-    } catch (error) {
-      return 'Неверная дата/время';
-    }
-  };
-
-  // Получение информации о статусе
   const getStatusInfo = (status) => {
     switch (status) {
       case 'pending':
@@ -445,24 +231,23 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Отмена записи администратором с использованием вашего конфига
   const handleCancelAppointment = async (appointmentId, reason = '') => {
     try {
-      // Используем API.APPOINTMENTS.UPDATE из конфига
-      await apiRequest(API.APPOINTMENTS.UPDATE(appointmentId).replace(API.BASE_URL, ''), {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'cancelled', cancelReason: reason })
+      await api.put(`${API.APPOINTMENTS.UPDATE?.(appointmentId) || `/api/appointments/${appointmentId}/cancel`}`, { 
+        status: 'cancelled', 
+        cancelReason: reason 
       });
 
-      // Обновляем локальное состояние
       setAppointments(prev => prev.map(app => 
         app._id === appointmentId 
           ? { ...app, status: 'cancelled' }
           : app
       ));
       
-      // Обновляем статистику
-      loadAllAppointments();
+      await loadAllAppointments();
+      
+      setSuccessMessage('Запись успешно отменена');
+      setTimeout(() => setSuccessMessage(''), 3000);
       
       return true;
     } catch (error) {
@@ -471,55 +256,27 @@ const AppointmentsAdmin = () => {
     }
   };
 
-  // Обновление записи с использованием вашего конфига
-  const handleUpdateAppointment = async (appointmentId, updates) => {
-    try {
-      // Используем API.APPOINTMENTS.UPDATE из конфига
-      await apiRequest(API.APPOINTMENTS.UPDATE(appointmentId).replace(API.BASE_URL, ''), {
-        method: 'PUT',
-        body: JSON.stringify(updates)
-      });
-
-      // Обновляем локальное состояние
-      setAppointments(prev => prev.map(app => 
-        app._id === appointmentId 
-          ? { ...app, ...updates }
-          : app
-      ));
-      
-      return true;
-    } catch (error) {
-      console.error('Ошибка обновления записи:', error);
-      throw error;
-    }
-  };
-
-  // Удаление записи с использованием вашего конфига
   const handleDeleteAppointment = async (appointmentId) => {
     if (!window.confirm('Вы уверены, что хотите удалить эту запись?')) {
       return;
     }
 
     try {
-      // Используем API.APPOINTMENTS.DELETE из конфига
-      await apiRequest(API.APPOINTMENTS.DELETE(appointmentId).replace(API.BASE_URL, ''), {
-        method: 'DELETE'
-      });
+      await api.delete(`${API.APPOINTMENTS.DELETE?.(appointmentId) || `/api/appointments/${appointmentId}`}`);
       
-      // Обновляем локальное состояние
       setAppointments(prev => prev.filter(app => app._id !== appointmentId));
       
-      // Обновляем статистику
-      loadAllAppointments();
+      await loadAllAppointments();
       
-      alert('Запись успешно удалена');
+      setSuccessMessage('Запись успешно удалена');
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
     } catch (error) {
       console.error('Ошибка удаления записи:', error);
       alert('Ошибка при удалении записи');
     }
   };
 
-  // Подтверждение отмены
   const handleConfirmCancel = async () => {
     try {
       await handleCancelAppointment(selectedAppointment._id, cancelReason);
@@ -528,18 +285,16 @@ const AppointmentsAdmin = () => {
       setCancelReason('');
       setSelectedAppointment(null);
       
-      alert('Запись успешно отменена');
     } catch (error) {
       alert('Ошибка при отмене записи');
     }
   };
 
-  // Открытие формы редактирования
   const handleEditClick = (appointment) => {
     setSelectedAppointment(appointment);
     setEditForm({
       service: appointment.service || '',
-      date: new Date(appointment.date).toISOString().split('T')[0],
+      date: appointment.date ? new Date(appointment.date).toISOString().split('T')[0] : '',
       time: appointment.time || '',
       notes: appointment.notes || '',
       status: appointment.status || '',
@@ -548,76 +303,50 @@ const AppointmentsAdmin = () => {
     setShowEditModal(true);
   };
 
-  // Сохранение изменений
   const handleSaveEdit = async () => {
     try {
-      await handleUpdateAppointment(selectedAppointment._id, editForm);
+      // Для обновления записи
+      await api.put(`${API.APPOINTMENTS.UPDATE?.(selectedAppointment._id) || `/api/appointments/${selectedAppointment._id}`}`, editForm);
+
+      setAppointments(prev => prev.map(app => 
+        app._id === selectedAppointment._id 
+          ? { ...app, ...editForm }
+          : app
+      ));
+      
+      setSuccessMessage('Запись успешно обновлена');
+      setTimeout(() => setSuccessMessage(''), 3000);
       
       setShowEditModal(false);
       setEditForm({});
       setSelectedAppointment(null);
       
-      alert('Запись успешно обновлена');
     } catch (error) {
+      console.error('Ошибка обновления записи:', error);
       alert('Ошибка при обновлении записи');
     }
   };
 
-  // Экспорт записей
-  const handleExportAppointments = () => {
-    const data = filteredAppointments.map(app => ({
-      'ID записи': app._id,
-      'Питомец': app.animal?.name || '',
-      'Тип': app.animal?.type || '',
-      'Врач': app.vet?.name || '',
-      'Специализация': app.vet?.specialization || '',
-      'Клиент': `${app.createdBy?.firstName || ''} ${app.createdBy?.lastName || ''}`,
-      'Email': app.createdBy?.email || '',
-      'Телефон': app.createdBy?.phone || '',
-      'Услуга': app.service || '',
-      'Дата': formatDate(app.date),
-      'Время': app.time,
-      'Статус': getStatusInfo(app.status).label,
-      'Стоимость': app.price || 0,
-      'Примечания': app.notes || '',
-      'Создано': new Date(app.createdAt).toLocaleDateString('ru-RU')
-    }));
-
-    // Создаем CSV
-    const csvContent = [
-      Object.keys(data[0] || {}).join(','),
-      ...data.map(row => Object.values(row).map(value => 
-        `"${String(value).replace(/"/g, '""')}"`
-      ).join(','))
-    ].join('\n');
-
-    // Создаем и скачиваем файл
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `записи_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Рендер карточки записи
   const renderAppointmentCard = (appointment) => {
     const statusInfo = getStatusInfo(appointment.status);
     const isUpcoming = appointment.status === 'pending' || appointment.status === 'confirmed';
 
-    // Безопасное получение данных
     const animalName = appointment.animal?.name || 'Неизвестный питомец';
     const animalType = appointment.animal?.type || '';
     const vetName = appointment.vet?.name || 'Неизвестный врач';
     const userName = `${appointment.createdBy?.firstName || ''} ${appointment.createdBy?.lastName || ''}`;
-    const userEmail = appointment.createdBy?.email || '';
     
-    const appointmentDate = new Date(appointment.date);
-    const day = appointmentDate.getDate();
-    const month = appointmentDate.toLocaleDateString('ru-RU', { month: 'short' });
+    let day = '';
+    let month = '';
+    
+    try {
+      const appointmentDate = new Date(appointment.date);
+      day = appointmentDate.getDate();
+      month = appointmentDate.toLocaleDateString('ru-RU', { month: 'short' });
+    } catch (e) {
+      day = '?';
+      month = '???';
+    }
 
     return (
       <div key={appointment._id} className="appointment-card">
@@ -634,14 +363,13 @@ const AppointmentsAdmin = () => {
               </h3>
               <p className="vet-name">{vetName}</p>
               <p className="user-info">
-                👤 {userName} ({userEmail})
+                👤 {userName}
               </p>
             </div>
             
             <div className="info-details">
               <span className="specialization">{appointment.vet?.specialization}</span>
               <span className="time">{appointment.time}</span>
-              <span className="service">{appointment.service}</span>
             </div>
           </div>
           
@@ -667,32 +395,18 @@ const AppointmentsAdmin = () => {
               <strong>Дата:</strong> {formatDate(appointment.date)}
             </span>
             <span className="meta-item">
-              <strong>Время:</strong> {appointment.time}
-            </span>
-            <span className="meta-item">
-              <strong>Создано:</strong> {new Date(appointment.createdAt).toLocaleDateString('ru-RU')}
+              <strong>Стоимость:</strong> {appointment.price || 0} ₽
             </span>
           </div>
         </div>
         
         <div className="appointment-footer">
-          <div className="appointment-price">
-            Стоимость: <strong>{appointment.price || 0} ₽</strong>
-          </div>
-          
           <div className="appointment-actions">
             <button 
-              className="btn btn-sm btn-outline"
+              className="btn btn-sm btn-info"
               onClick={() => setSelectedAppointment(appointment)}
             >
               Подробнее
-            </button>
-            
-            <button 
-              className="btn btn-sm btn-info"
-              onClick={() => handleEditClick(appointment)}
-            >
-              Редактировать
             </button>
             
             {isUpcoming && (
@@ -706,26 +420,33 @@ const AppointmentsAdmin = () => {
                 Отменить
               </button>
             )}
-            
-            <button 
-              className="btn btn-sm btn-danger"
-              onClick={() => handleDeleteAppointment(appointment._id)}
-            >
-              Удалить
-            </button>
           </div>
         </div>
       </div>
     );
   };
 
-  // Рендер списка записей
   const renderAppointmentsList = () => {
+    const appointmentsArray = Array.isArray(appointments) ? appointments : [];
+    
     if (isLoading) {
       return (
         <div className="loading-state">
           <div className="spinner"></div>
           <p>Загрузка записей...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="error-state">
+          <div className="error-icon">⚠️</div>
+          <h3>Ошибка загрузки</h3>
+          <p>{error}</p>
+          <button className="btn btn-primary" onClick={loadAllAppointments}>
+            Повторить попытку
+          </button>
         </div>
       );
     }
@@ -747,38 +468,24 @@ const AppointmentsAdmin = () => {
     );
   };
 
-  // Кнопка возврата в обычный интерфейс
-  const handleBackToUserView = () => {
-    navigate('/appointments');
-  };
-
   return (
     <div className="appointments-page">
       <div className="container">
-        {/* Заголовок */}
+        {successMessage && (
+          <div className="success-message">
+            <div className="success-icon">✅</div>
+            <span>{successMessage}</span>
+            <button className="close-btn" onClick={() => setSuccessMessage('')}>×</button>
+          </div>
+        )}
+
         <div className="page-header">
           <div>
             <h1>👑 Управление записями (Администратор)</h1>
             <p>Просмотр и управление всеми записями клиники</p>
           </div>
-          
-          <div className="header-actions">
-            <button 
-              className="btn btn-outline"
-              onClick={handleBackToUserView}
-            >
-              ← Обычный вид
-            </button>
-            <button 
-              className="btn btn-success"
-              onClick={handleExportAppointments}
-            >
-              📥 Экспорт CSV
-            </button>
-          </div>
         </div>
 
-        {/* Статистика */}
         <div className="stats-cards">
           <div className="stat-card">
             <div className="stat-icon">📊</div>
@@ -821,7 +528,6 @@ const AppointmentsAdmin = () => {
           </div>
         </div>
 
-        {/* Фильтры и поиск */}
         <div className="filters-section">
           <div className="search-box">
             <input
@@ -853,8 +559,10 @@ const AppointmentsAdmin = () => {
               className="filter-select"
             >
               <option value="all">Все ветеринары</option>
-              {vets.map(vet => (
-                <option key={vet._id} value={vet._id}>{vet.name}</option>
+              {Array.isArray(vets) && vets.map(vet => (
+                <option key={vet._id} value={vet._id}>
+                  {vet.name} {vet.specialization ? `(${vet.specialization})` : ''}
+                </option>
               ))}
             </select>
             
@@ -864,7 +572,7 @@ const AppointmentsAdmin = () => {
               className="filter-select"
             >
               <option value="all">Все клиенты</option>
-              {users.map(user => (
+              {Array.isArray(users) && users.map(user => (
                 <option key={user._id} value={user._id}>
                   {user.firstName} {user.lastName} ({user.email})
                 </option>
@@ -893,7 +601,6 @@ const AppointmentsAdmin = () => {
           </div>
         </div>
 
-        {/* Вкладки */}
         <div className="tabs">
           <button 
             className={`tab ${activeTab === 'all' ? 'active' : ''}`}
@@ -921,7 +628,6 @@ const AppointmentsAdmin = () => {
           </button>
         </div>
 
-        {/* Список записей */}
         <div className="appointments-container">
           {renderAppointmentsList()}
         </div>
@@ -940,10 +646,6 @@ const AppointmentsAdmin = () => {
                   <h3>Информация о записи</h3>
                   <div className="detail-grid">
                     <div className="detail-item">
-                      <span className="detail-label">ID записи:</span>
-                      <span className="detail-value">{selectedAppointment._id}</span>
-                    </div>
-                    <div className="detail-item">
                       <span className="detail-label">Статус:</span>
                       <span className="detail-value" style={{ color: getStatusInfo(selectedAppointment.status).color }}>
                         {getStatusInfo(selectedAppointment.status).label}
@@ -956,7 +658,7 @@ const AppointmentsAdmin = () => {
                     <div className="detail-item">
                       <span className="detail-label">Дата и время:</span>
                       <span className="detail-value">
-                        {formatDateTime(selectedAppointment.date, selectedAppointment.time)}
+                        {formatDate(selectedAppointment.date)} в {selectedAppointment.time}
                       </span>
                     </div>
                     <div className="detail-item">
@@ -1027,17 +729,11 @@ const AppointmentsAdmin = () => {
                         <span className="detail-value">{selectedAppointment.notes}</span>
                       </div>
                     )}
-                    <div className="detail-item">
-                      <span className="detail-label">Создана:</span>
-                      <span className="detail-value">
-                        {new Date(selectedAppointment.createdAt).toLocaleString('ru-RU')}
-                      </span>
-                    </div>
-                    {selectedAppointment.updatedAt && (
+                    {selectedAppointment.createdAt && (
                       <div className="detail-item">
-                        <span className="detail-label">Обновлена:</span>
+                        <span className="detail-label">Создана:</span>
                         <span className="detail-value">
-                          {new Date(selectedAppointment.updatedAt).toLocaleString('ru-RU')}
+                          {new Date(selectedAppointment.createdAt).toLocaleString('ru-RU')}
                         </span>
                       </div>
                     )}
@@ -1048,15 +744,6 @@ const AppointmentsAdmin = () => {
               <div className="modal-footer">
                 <button className="btn btn-outline" onClick={() => setSelectedAppointment(null)}>
                   Закрыть
-                </button>
-                <button 
-                  className="btn btn-info"
-                  onClick={() => {
-                    setSelectedAppointment(null);
-                    setTimeout(() => handleEditClick(selectedAppointment), 100);
-                  }}
-                >
-                  Редактировать
                 </button>
                 {(selectedAppointment.status === 'pending' || selectedAppointment.status === 'confirmed') && (
                   <button 
@@ -1103,7 +790,7 @@ const AppointmentsAdmin = () => {
                   Клиент: <strong>{selectedAppointment.createdBy?.firstName} {selectedAppointment.createdBy?.lastName}</strong>
                 </p>
                 <p>
-                  На: <strong>{formatDateTime(selectedAppointment.date, selectedAppointment.time)}</strong>
+                  На: <strong>{formatDate(selectedAppointment.date)} в {selectedAppointment.time}</strong>
                 </p>
                 
                 <div className="form-group">
@@ -1135,122 +822,6 @@ const AppointmentsAdmin = () => {
                   onClick={handleConfirmCancel}
                 >
                   Подтвердить отмену
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Модальное окно редактирования */}
-        {showEditModal && selectedAppointment && (
-          <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '600px' }}>
-              <div className="modal-header">
-                <h2>Редактирование записи</h2>
-                <button 
-                  className="modal-close" 
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditForm({});
-                    setSelectedAppointment(null);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Услуга *</label>
-                  <input
-                    type="text"
-                    value={editForm.service}
-                    onChange={(e) => setEditForm({...editForm, service: e.target.value})}
-                    className="form-input"
-                    required
-                  />
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Дата *</label>
-                    <input
-                      type="date"
-                      value={editForm.date}
-                      onChange={(e) => setEditForm({...editForm, date: e.target.value})}
-                      className="form-input"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label>Время *</label>
-                    <input
-                      type="time"
-                      value={editForm.time}
-                      onChange={(e) => setEditForm({...editForm, time: e.target.value})}
-                      className="form-input"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Статус *</label>
-                    <select
-                      value={editForm.status}
-                      onChange={(e) => setEditForm({...editForm, status: e.target.value})}
-                      className="form-select"
-                      required
-                    >
-                      <option value="">Выберите статус</option>
-                      <option value="pending">Ожидание</option>
-                      <option value="confirmed">Подтвержден</option>
-                      <option value="completed">Завершен</option>
-                      <option value="cancelled">Отменен</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label>Стоимость (₽)</label>
-                    <input
-                      type="number"
-                      value={editForm.price}
-                      onChange={(e) => setEditForm({...editForm, price: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-group">
-                  <label>Примечания</label>
-                  <textarea
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
-                    className="form-textarea"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              
-              <div className="modal-footer">
-                <button 
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditForm({});
-                    setSelectedAppointment(null);
-                  }}
-                >
-                  Отмена
-                </button>
-                <button 
-                  className="btn btn-primary"
-                  onClick={handleSaveEdit}
-                  disabled={!editForm.service || !editForm.date || !editForm.time || !editForm.status}
-                >
-                  Сохранить изменения
                 </button>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../config/api'; // ← Импортируем конфиг
+import API from '../../api/api'; // ← Импортируем конфиг
 import './AppointmentPage.css';
 
 const Appointments = () => {
@@ -53,7 +53,7 @@ const Appointments = () => {
     };
 
     try {
-      console.log(`Отправка запроса на: ${API.BASE_URL}${endpoint}`); // ← Используем API.BASE_URL
+      console.log(`Отправка запроса на: ${API.BASE_URL}${endpoint}`);
       const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
@@ -87,7 +87,7 @@ const Appointments = () => {
 
       console.log('Загрузка записей для пользователя:', user.id);
       
-      // Используем API.APPOINTMENTS.USER - ИСПРАВЛЕНО
+      // Используем API.APPOINTMENTS.USER
       const data = await apiRequest('/appointments/user');
       
       console.log('Получены записи:', data);
@@ -412,11 +412,6 @@ const Appointments = () => {
     navigate('/booking');
   };
 
-  // Перенос записи
-  const handleReschedule = (appointmentId) => {
-    navigate(`/booking?edit=${appointmentId}`);
-  };
-
   // Рендер карточки записи
   const renderAppointmentCard = (appointment) => {
     const statusInfo = getStatusInfo(appointment.status);
@@ -498,24 +493,15 @@ const Appointments = () => {
             </button>
             
             {isUpcoming && (
-              <>
-                <button 
-                  className="btn btn-sm btn-warning"
-                  onClick={() => {
-                    setSelectedAppointment(appointment);
-                    setShowCancelModal(true);
-                  }}
-                >
-                  Отменить
-                </button>
-                
-                <button 
-                  className="btn btn-sm btn-primary"
-                  onClick={() => handleReschedule(appointment._id)}
-                >
-                  Перенести
-                </button>
-              </>
+              <button 
+                className="btn btn-sm btn-warning"
+                onClick={() => {
+                  setSelectedAppointment(appointment);
+                  setShowCancelModal(true);
+                }}
+              >
+                Отменить
+              </button>
             )}
             
             {isCancelled && (
@@ -591,17 +577,17 @@ const Appointments = () => {
           </div>
         </div>
 
-        {/* Статистика */}
-        <div className="stats-cards">
-          <div className="stat-card">
+        {/* Статистика - КОМПАКТНЫЙ ВАРИАНТ */}
+        <div className="stats-cards compact">
+          <div className="stat-card compact">
             <div className="stat-icon">📅</div>
             <div className="stat-content">
               <div className="stat-value">{stats.total}</div>
-              <div className="stat-label">Всего записей</div>
+              <div className="stat-label">Всего</div>
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card compact">
             <div className="stat-icon" style={{ color: '#4299E1' }}>⏰</div>
             <div className="stat-content">
               <div className="stat-value">{stats.upcoming}</div>
@@ -609,19 +595,19 @@ const Appointments = () => {
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card compact">
             <div className="stat-icon" style={{ color: '#48BB78' }}>✅</div>
             <div className="stat-content">
               <div className="stat-value">{stats.completed}</div>
-              <div className="stat-label">Завершенные</div>
+              <div className="stat-label">Завершено</div>
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card compact">
             <div className="stat-icon" style={{ color: '#F56565' }}>❌</div>
             <div className="stat-content">
               <div className="stat-value">{stats.cancelled}</div>
-              <div className="stat-label">Отмененные</div>
+              <div className="stat-label">Отменено</div>
             </div>
           </div>
         </div>
@@ -642,7 +628,7 @@ const Appointments = () => {
           </button>
         </div>
 
-        {/* Фильтры */}
+        {/* Фильтры с стилизованным полем даты */}
         <div className="filters-section">
           <div className="search-box">
             <input
@@ -668,13 +654,24 @@ const Appointments = () => {
               <option value="cancelled">Отменен</option>
             </select>
             
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="date-input"
-              placeholder="Фильтр по дате"
-            />
+            <div className="date-filter-wrapper">
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="date-input styled"
+                placeholder="Выберите дату"
+              />
+              {filterDate && (
+                <button 
+                  className="clear-date-btn"
+                  onClick={() => setFilterDate('')}
+                  title="Очистить дату"
+                >
+                  ×
+                </button>
+              )}
+            </div>
             
             <button 
               className="btn btn-sm btn-outline"

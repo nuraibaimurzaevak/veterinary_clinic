@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../../config/api'; // ← Добавляем импорт конфига API
+import api from '../../../api/axiosConfig';
+import API from '../../../api/api';
 import './AdminVetsPage.css';
 
 const AdminVetsPage = () => {
@@ -13,20 +14,18 @@ const AdminVetsPage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedVet, setSelectedVet] = useState(null);
   const [vetToDelete, setVetToDelete] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
   
-  // Форма для добавления/редактирования с расписанием по дням
   const [vetForm, setVetForm] = useState({
     name: '',
     specialization: 'Терапевт',
     bio: '',
     experience: '',
     education: '',
-    // Общие рабочие часы (по умолчанию)
     workingHours: {
       start: '09:00',
       end: '18:00'
     },
-    // Детальное расписание по дням
     schedule: {
       monday: { isWorking: true, startTime: '09:00', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00' },
       tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00' },
@@ -36,11 +35,10 @@ const AdminVetsPage = () => {
       saturday: { isWorking: false, startTime: '10:00', endTime: '16:00', breakStart: '13:00', breakEnd: '14:00' },
       sunday: { isWorking: false, startTime: '10:00', endTime: '14:00' }
     },
-    slotDuration: 30, // Длительность приема в минутах
+    slotDuration: 30,
     isActive: true
   });
 
-  // Дни недели для отображения
   const daysOfWeek = [
     { id: 'monday', label: 'Понедельник', short: 'Пн' },
     { id: 'tuesday', label: 'Вторник', short: 'Вт' },
@@ -51,12 +49,6 @@ const AdminVetsPage = () => {
     { id: 'sunday', label: 'Воскресенье', short: 'Вс' }
   ];
 
-  // Получение токена
-  const getToken = () => {
-    return localStorage.getItem('token');
-  };
-
-  // Загрузка ветеринаров
   useEffect(() => {
     loadVets();
   }, []);
@@ -64,40 +56,64 @@ const AdminVetsPage = () => {
   const loadVets = async () => {
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
-      const token = getToken();
-      if (!token) {
-        setError('Требуется авторизация');
-        return;
-      }
-
-      // Используем API.VETS.ADMIN_ALL из конфига
-      const response = await fetch(API.VETS.ADMIN_ALL, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      const response = await api.get(API.VETS.ADMIN_ALL);
+      
+      // Обработка разных форматов ответа
+      let vetsData = [];
+      
+      if (Array.isArray(response.data)) {
+        vetsData = response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        // Проверяем различные варианты структуры
+        if (Array.isArray(response.data.vets)) {
+          vetsData = response.data.vets;
+        } else if (Array.isArray(response.data.data)) {
+          vetsData = response.data.data;
+        } else if (Array.isArray(response.data.result)) {
+          vetsData = response.data.result;
+        } else {
+          // Если не нашли массив, преобразуем объект в массив
+          vetsData = Object.values(response.data);
         }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Ошибка ${response.status}`);
       }
-
-      const data = await response.json();
-      setVets(data);
+      
+      // Гарантируем, что это массив
+      if (!Array.isArray(vetsData)) {
+        vetsData = [];
+      }
+      
+      setVets(vetsData);
 
     } catch (error) {
       console.error('Ошибка загрузки ветеринаров:', error);
-      setError('Не удалось загрузить список ветеринаров');
+      
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.message || `Ошибка ${status}`;
+        
+        if (status === 401) {
+          setError('Требуется авторизация');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          navigate('/login');
+        } else if (status === 403) {
+          setError('У вас нет прав для доступа к этой странице');
+        } else {
+          setError(message);
+        }
+      } else if (error.request) {
+        setError('Не удалось подключиться к серверу');
+      } else {
+        setError('Ошибка: ' + error.message);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Обработчики формы
   const handleFormChange = (field, value) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
@@ -113,7 +129,6 @@ const AdminVetsPage = () => {
     }
   };
 
-  // Обработчик изменений расписания
   const handleScheduleChange = (dayId, field, value) => {
     setVetForm(prev => ({
       ...prev,
@@ -127,11 +142,9 @@ const AdminVetsPage = () => {
     }));
   };
 
-  // Копировать рабочие часы на все рабочие дни
   const copyHoursToAllWorkingDays = () => {
     const updatedSchedule = { ...vetForm.schedule };
     
-    // Находим первый рабочий день с непустым временем
     const workingDay = Object.keys(updatedSchedule).find(day => 
       updatedSchedule[day].isWorking && 
       updatedSchedule[day].startTime && 
@@ -141,7 +154,6 @@ const AdminVetsPage = () => {
     if (workingDay) {
       const template = updatedSchedule[workingDay];
       
-      // Копируем на все рабочие дни
       Object.keys(updatedSchedule).forEach(day => {
         if (updatedSchedule[day].isWorking) {
           updatedSchedule[day] = { ...template };
@@ -157,7 +169,6 @@ const AdminVetsPage = () => {
     }
   };
 
-  // Применить стандартное расписание (пн-пт 9-18, сб 10-16, вс выходной)
   const applyStandardSchedule = () => {
     const standardSchedule = {
       monday: { isWorking: true, startTime: '09:00', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00' },
@@ -177,7 +188,6 @@ const AdminVetsPage = () => {
     }
   };
 
-  // Добавление ветеринара с использованием конфига API
   const handleAddVet = async () => {
     if (!vetForm.name.trim()) {
       alert('Введите ФИО ветеринара');
@@ -185,41 +195,44 @@ const AdminVetsPage = () => {
     }
 
     try {
-      const token = getToken();
+      const formData = {
+        ...vetForm,
+        experience: vetForm.experience ? parseInt(vetForm.experience) : 0
+      };
+
+      const response = await api.post(API.VETS.CREATE, formData);
       
-      // Используем API.VETS.CREATE из конфига
-      const response = await fetch(API.VETS.CREATE, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(vetForm)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Ошибка при добавлении ветеринара');
-      }
-
+      // Показываем успешное сообщение
+      setSuccessMessage('Ветеринар успешно добавлен!');
+      
       // Обновляем список
-      loadVets();
-      setShowAddModal(false);
-      resetForm();
-      alert('Ветеринар успешно добавлен!');
+      await loadVets();
+      
+      // Закрываем модалку с задержкой
+      setTimeout(() => {
+        setShowAddModal(false);
+        resetForm();
+      }, 1000);
 
     } catch (error) {
       console.error('Ошибка добавления ветеринара:', error);
-      alert(error.message || 'Произошла ошибка при добавлении ветеринара');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Ошибка ${error.response.status}`;
+        alert(`Ошибка добавления: ${message}`);
+      } else if (error.request) {
+        alert('Не удалось подключиться к серверу');
+      } else {
+        alert('Ошибка: ' + error.message);
+      }
     }
   };
 
-  // Редактирование ветеринара
   const handleEditClick = (vet) => {
     setSelectedVet(vet);
     
-    // Если у ветеринара нет расписания в БД, используем стандартное
     const schedule = vet.schedule || {
       monday: { isWorking: true, startTime: '09:00', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00' },
       tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00' },
@@ -231,91 +244,108 @@ const AdminVetsPage = () => {
     };
 
     setVetForm({
-      name: vet.name,
-      specialization: vet.specialization,
+      name: vet.name || '',
+      specialization: vet.specialization || 'Терапевт',
       bio: vet.bio || '',
       experience: vet.experience?.toString() || '',
       education: vet.education || '',
       workingHours: vet.workingHours || { start: '09:00', end: '18:00' },
       schedule: schedule,
       slotDuration: vet.slotDuration || 30,
-      isActive: vet.isActive !== false // по умолчанию true
+      isActive: vet.isActive !== false
     });
     
     setShowEditModal(true);
   };
 
-  // Обновление ветеринара с использованием конфига API
   const handleUpdateVet = async () => {
+    if (!vetForm.name.trim()) {
+      alert('Введите ФИО ветеринара');
+      return;
+    }
+
     try {
-      const token = getToken();
+      const formData = {
+        ...vetForm,
+        experience: vetForm.experience ? parseInt(vetForm.experience) : 0
+      };
+
+      await api.put(API.VETS.BY_ID(selectedVet._id), formData);
+
+      // Показываем успешное сообщение
+      setSuccessMessage('Данные ветеринара обновлены!');
       
-      // Используем API.VETS.BY_ID из конфига
-      const response = await fetch(API.VETS.BY_ID(selectedVet._id), {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(vetForm)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Ошибка при обновлении ветеринара');
-      }
-
-      loadVets();
-      setShowEditModal(false);
-      setSelectedVet(null);
-      resetForm();
-      alert('Данные ветеринара обновлены!');
+      // Обновляем список
+      await loadVets();
+      
+      // Закрываем модалку с задержкой
+      setTimeout(() => {
+        setShowEditModal(false);
+        setSelectedVet(null);
+        resetForm();
+      }, 1000);
 
     } catch (error) {
       console.error('Ошибка обновления ветеринара:', error);
-      alert(error.message || 'Произошла ошибка при обновлении данных');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Ошибка ${error.response.status}`;
+        alert(`Ошибка обновления: ${message}`);
+      } else if (error.request) {
+        alert('Не удалось подключиться к серверу');
+      } else {
+        alert('Ошибка: ' + error.message);
+      }
     }
   };
 
-  // Удаление ветеринара с использованием конфига API
   const handleDeleteClick = (vet) => {
     setVetToDelete(vet);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
+    if (!vetToDelete) return;
+
     try {
-      const token = getToken();
-      
-      // Используем API.VETS.BY_ID для удаления
-      const response = await fetch(API.VETS.BY_ID(vetToDelete._id), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      await api.delete(API.VETS.BY_ID(vetToDelete._id));
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Ошибка при удалении ветеринара');
-      }
-
-      // Удаляем из списка
+      // Обновляем список локально
       setVets(prev => prev.filter(vet => vet._id !== vetToDelete._id));
+      
+      // Показываем сообщение
+      setSuccessMessage('Ветеринар успешно удален');
+      
+      // Закрываем модалку
       setShowDeleteModal(false);
       setVetToDelete(null);
-      alert('Ветеринар удален');
+      
+      // Убираем сообщение через 3 секунды
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
 
     } catch (error) {
       console.error('Ошибка удаления ветеринара:', error);
-      alert(error.message || 'Произошла ошибка при удалении');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Ошибка ${error.response.status}`;
+        alert(`Ошибка удаления: ${message}`);
+      } else if (error.request) {
+        alert('Не удалось подключиться к серверу');
+      } else {
+        alert('Ошибка: ' + error.message);
+      }
+      
+      setShowDeleteModal(false);
+      setVetToDelete(null);
     }
   };
 
-  // Сброс формы
   const resetForm = () => {
     setVetForm({
       name: '',
@@ -341,7 +371,6 @@ const AdminVetsPage = () => {
     });
   };
 
-  // Рендер строки расписания для дня
   const renderScheduleRow = (day) => {
     const daySchedule = vetForm.schedule[day.id];
     
@@ -404,7 +433,6 @@ const AdminVetsPage = () => {
     );
   };
 
-  // Рендер краткого расписания для таблицы
   const renderSchedulePreview = (vet) => {
     if (!vet.schedule) {
       return <span className="schedule-preview">9:00-18:00</span>;
@@ -434,8 +462,10 @@ const AdminVetsPage = () => {
     );
   };
 
-  // Рендер списка ветеринаров
   const renderVetsList = () => {
+    // Гарантируем, что vets это массив
+    const vetsArray = Array.isArray(vets) ? vets : [];
+    
     if (isLoading) {
       return (
         <div className="loading-state">
@@ -458,7 +488,7 @@ const AdminVetsPage = () => {
       );
     }
 
-    if (vets.length === 0) {
+    if (vetsArray.length === 0) {
       return (
         <div className="empty-state">
           <div className="empty-icon">👨‍⚕️</div>
@@ -488,7 +518,7 @@ const AdminVetsPage = () => {
             </tr>
           </thead>
           <tbody>
-            {vets.map(vet => (
+            {vetsArray.map(vet => (
               <tr key={vet._id}>
                 <td>
                   <div className="vet-info-cell">
@@ -535,7 +565,6 @@ const AdminVetsPage = () => {
     );
   };
 
-  // Рендер формы расписания
   const renderScheduleForm = () => (
     <div className="schedule-form-section">
       <div className="section-header">
@@ -599,6 +628,15 @@ const AdminVetsPage = () => {
           </button>
         </div>
 
+        {/* Сообщение об успехе */}
+        {successMessage && (
+          <div className="success-message">
+            <div className="success-icon">✅</div>
+            <span>{successMessage}</span>
+            <button className="close-btn" onClick={() => setSuccessMessage('')}>×</button>
+          </div>
+        )}
+
         {renderVetsList()}
       </div>
 
@@ -620,7 +658,7 @@ const AdminVetsPage = () => {
             </div>
             
             <div className="modal-body">
-              <form className="vet-form">
+              <form className="vet-form" onSubmit={(e) => e.preventDefault()}>
                 <div className="form-group">
                   <label htmlFor="name">ФИО ветеринара *</label>
                   <input
@@ -750,7 +788,7 @@ const AdminVetsPage = () => {
             </div>
             
             <div className="modal-body">
-              <form className="vet-form">
+              <form className="vet-form" onSubmit={(e) => e.preventDefault()}>
                 <div className="form-group">
                   <label htmlFor="name">ФИО ветеринара *</label>
                   <input
@@ -829,7 +867,7 @@ const AdminVetsPage = () => {
                       checked={vetForm.isActive}
                       onChange={(e) => handleFormChange('isActive', e.target.checked)}
                     />
-                    <span>Активный ветеринар (принимает пациентов)</span>
+                    <span>Активный ветеринара (принимает пациентов)</span>
                   </label>
                 </div>
               </form>

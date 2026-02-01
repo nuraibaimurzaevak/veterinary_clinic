@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../config/api';
+import API from '../../api/api';
 import './Booking.css';
+
+// 🔥 Импортируем api из axiosConfig вместо fetch
+import api from '../../api/axiosConfig';
 
 const Booking = () => {
   const navigate = useNavigate();
@@ -60,55 +63,46 @@ const Booking = () => {
     { number: 6, title: 'Подтверждение', description: 'Проверка данных' },
   ];
 
-  // Получение токена
-  const getAuthToken = () => {
-    return localStorage.getItem('token');
-  };
-
-  // API запрос
+  // 🔥 ИСПРАВЛЕННАЯ функция apiRequest - используем api вместо fetch
   const apiRequest = async (endpoint, options = {}) => {
-    const token = getAuthToken();
-    
-    if (!token) {
-      navigate('/login');
-      throw new Error('Требуется авторизация');
-    }
-
-    const defaultOptions = {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
-    };
-
     try {
-      const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
+      console.log(`📡 API запрос: ${endpoint}`);
       
-      if (response.status === 401) {
-        localStorage.clear();
-        navigate('/login');
-        throw new Error('Сессия истекла');
+      const config = {
+        method: options.method || 'GET',
+        url: endpoint,
+        ...options
+      };
+
+      // Если есть body в options, преобразуем его в data
+      if (options.body) {
+        config.data = JSON.parse(options.body);
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      // Добавляем заголовки если есть
+      if (options.headers) {
+        config.headers = options.headers;
       }
 
-      return await response.json();
+      const response = await api(config);
+      console.log(`✅ Успешный ответ от: ${endpoint}`);
+      return response.data;
+      
     } catch (error) {
-      console.error('API Error:', error);
-      throw error;
+      console.error(`❌ Ошибка API: ${endpoint}`, error);
+      
+      // Если ошибка 401 - токен истек, interceptor сам обработает
+      if (error.response?.status === 401) {
+        throw new Error('Сессия истекла. Авторизуйтесь снова.');
+      }
+      
+      throw new Error(error.response?.data?.message || error.message || 'Ошибка сервера');
     }
   };
 
   // ИСПРАВЛЕННАЯ функция парсинга расписания
   const parseVetSchedule = (vet) => {
-    // Если расписание уже в правильном формате объекта
     if (vet.schedule && typeof vet.schedule === 'object' && vet.schedule !== null) {
-      // Проверяем, есть ли все дни недели
       const defaultSchedule = {
         monday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
         tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
@@ -119,11 +113,9 @@ const Booking = () => {
         sunday: { isWorking: false, startTime: '10:00', endTime: '14:00' }
       };
       
-      // Объединяем с дефолтными значениями
       return { ...defaultSchedule, ...vet.schedule };
     }
     
-    // Если расписание в виде JSON строки
     if (vet.schedule && typeof vet.schedule === 'string') {
       try {
         const parsed = JSON.parse(vet.schedule);
@@ -143,7 +135,6 @@ const Booking = () => {
       }
     }
     
-    // Если есть поле workingDays или подобное
     if (vet.workingDays) {
       const schedule = {};
       const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -157,7 +148,6 @@ const Booking = () => {
       return schedule;
     }
     
-    // Стандартное расписание
     return {
       monday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
       tuesday: { isWorking: true, startTime: '09:00', endTime: '18:00' },
@@ -174,14 +164,12 @@ const Booking = () => {
     const dates = [];
     const today = new Date();
     
-    // Сбрасываем время на начало дня
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
     for (let i = 0; i < 14; i++) {
       const date = new Date(todayStart);
       date.setDate(todayStart.getDate() + i);
       
-      // Форматируем дату в YYYY-MM-DD
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -215,13 +203,12 @@ const Booking = () => {
       try {
         // Загрузка животных пользователя
         const animalsData = await apiRequest('/animals/user');
-        setUserAnimals(animalsData || []);
+        setUserAnimals(animalsData.animals || []);
 
         // Загрузка ветеринаров
         const vetsResponse = await apiRequest('/vets');
         
-        // Правильно обрабатываем расписание каждого ветеринара
-        const processedVets = (vetsResponse || []).map(vet => {
+        const processedVets = (vetsResponse.vets || vetsResponse || []).map(vet => {
           return {
             ...vet,
             schedule: parseVetSchedule(vet),
@@ -520,6 +507,7 @@ const Booking = () => {
         appointmentData.notes = `Симптомы: ${bookingData.symptoms.join(', ')}. ${appointmentData.notes || ''}`;
       }
 
+      // 🔥 Используем apiRequest для создания записи
       await apiRequest('/appointments', {
         method: 'POST',
         body: JSON.stringify(appointmentData)
@@ -1022,7 +1010,8 @@ const Booking = () => {
           </div>
           
           <div className="confirmation-card">
-            <h3>Причина обращения</h3>
+            <h3>Причина</h3>
+            <h3>обращения</h3>
             <div className="confirmation-content">
               <div className="confirmation-item">
                 <span className="item-label">Услуга:</span>
@@ -1032,7 +1021,7 @@ const Booking = () => {
                 <div className="confirmation-item">
                   <span className="item-label">Симптомы:</span>
                   <span className="item-value">{bookingData.symptoms.join(', ')}</span>
-                </div>
+              </div>
               )}
               {bookingData.notes && (
                 <div className="confirmation-item">
@@ -1085,7 +1074,9 @@ const Booking = () => {
           </div>
           
           <div className="confirmation-card">
-            <h3>Время приема</h3>
+            <h3>Время</h3>
+            <h3>приема</h3>
+
             <div className="confirmation-content">
               <div className="confirmation-item">
                 <span className="item-label">Дата и время:</span>
@@ -1285,6 +1276,5 @@ const Booking = () => {
       </div>
     </div>
   );
-};
-
+  };
 export default Booking;

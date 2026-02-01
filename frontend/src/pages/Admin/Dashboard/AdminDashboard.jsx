@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../../config/api'; // ← Добавляем импорт конфига API
+import API from '../../../api/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -9,14 +9,13 @@ const AdminDashboard = () => {
   const [recentAppointments, setRecentAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [usingMockData, setUsingMockData] = useState(false);
 
   // Получение токена
   const getAuthToken = () => {
     return localStorage.getItem('token');
   };
 
-  // API запрос с авторизацией, использующий ваш конфиг
+  // API запрос с авторизацией
   const apiRequest = async (endpoint, options = {}) => {
     const token = getAuthToken();
     
@@ -35,8 +34,6 @@ const AdminDashboard = () => {
     };
 
     try {
-      // Используем API.BASE_URL из конфига
-      console.log(`Запрос: ${API.BASE_URL}${endpoint}`);
       const response = await fetch(`${API.BASE_URL}${endpoint}`, defaultOptions);
       
       if (response.status === 401) {
@@ -46,8 +43,7 @@ const AdminDashboard = () => {
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -57,68 +53,10 @@ const AdminDashboard = () => {
     }
   };
 
-  // Вспомогательные функции для отчета
-  const convertToCSV = (data) => {
-    if (!data || data.length === 0) return '';
-    
-    const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(item => 
-      Object.values(item).map(value => 
-        `"${String(value).replace(/"/g, '""')}"`
-      ).join(',')
-    );
-    
-    return [headers, ...rows].join('\n');
-  };
-
-  const downloadCSV = (csv, filename) => {
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Функция для скачивания отчета
-  const handleDownloadReport = async () => {
-    try {
-      // Используем API.APPOINTMENTS.USER из конфига (но без пользователя)
-      const appointments = await apiRequest('/appointments/user');
-      
-      // Преобразуем в CSV для скачивания
-      const csvData = appointments.map(app => ({
-        ID: app._id,
-        Животное: app.animal?.name || 'Не указано',
-        Владелец: app.user?.name || app.createdBy?.name || 'Не указано',
-        Ветеринар: app.vet?.name || 'Не указано',
-        Дата: app.date || 'Не указано',
-        Время: app.time || 'Не указано',
-        Услуга: app.service || 'Не указано',
-        Статус: app.status || 'pending',
-        Цена: app.price || '0'
-      }));
-      
-      const csv = convertToCSV(csvData);
-      downloadCSV(csv, `appointments-report-${new Date().toISOString().split('T')[0]}.csv`);
-      
-      alert('Отчет скачан успешно!');
-    } catch (error) {
-      console.error('Ошибка скачивания отчета:', error);
-      alert('Ошибка при скачивании отчета');
-    }
-  };
-
   // Быстрые действия
   const quickActions = [
     { title: 'Управление животными', icon: '🐕', onClick: () => navigate('/admin/animals') },
     { title: 'Управление ветеринарами', icon: '👨‍⚕️', onClick: () => navigate('/admin/vets') },
-    { title: 'Скачать отчет', icon: '📊', onClick: handleDownloadReport },
     { title: 'Все записи', icon: '📅', onClick: () => navigate('/admin/appointments') },
   ];
 
@@ -130,58 +68,76 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      setUsingMockData(false);
+      setError(null);
       
-      // Загружаем данные с существующих эндпоинтов, используя конфиг
-      const [animalsResponse, appointmentsResponse, vetsResponse, usersResponse] = await Promise.all([
-        // Используем API.ANIMALS.ALL для животных
-        apiRequest('/animals/all').catch(() => ({ animals: [] })),
-        // Используем API.APPOINTMENTS.USER для записей
-        apiRequest('/appointments/user').catch(() => ({ appointments: [] })),
-        // Используем API.VETS.ALL для ветеринаров
-        apiRequest('/vets').catch(() => ({ vets: [] })),
-        // Используем API.USERS.ALL для пользователей
-        apiRequest('/users').catch(() => ({ users: [] }))
+      console.log('Загружаем данные для дашборда...');
+      
+      // Загружаем все данные параллельно
+      const [appointmentsData, animalsData, vetsData, usersData] = await Promise.all([
+        apiRequest('/appointments/user').catch(() => []),
+        apiRequest('/animals/all').catch(() => []),
+        apiRequest('/vets').catch(() => []),
+        apiRequest('/users').catch(() => [])
       ]);
-
-      const animals = animalsResponse.animals || animalsResponse || [];
-      const appointments = appointmentsResponse.appointments || appointmentsResponse || [];
-      const vets = vetsResponse.vets || vetsResponse || [];
-      const users = usersResponse.users || usersResponse || [];
-
+      
+      console.log('Полученные данные:', {
+        appointments: appointmentsData,
+        animals: animalsData,
+        vets: vetsData,
+        users: usersData
+      });
+      
+      // Преобразуем данные в массивы
+      const appointments = Array.isArray(appointmentsData) ? appointmentsData : 
+                          (appointmentsData?.appointments || appointmentsData?.data || []);
+      
+      const animals = Array.isArray(animalsData) ? animalsData : 
+                     (animalsData?.animals || animalsData?.data || []);
+      
+      const vets = Array.isArray(vetsData) ? vetsData : 
+                  (vetsData?.vets || vetsData?.data || []);
+      
+      const users = Array.isArray(usersData) ? usersData : 
+                   (usersData?.users || usersData?.data || []);
+      
+      console.log('Статистика:', {
+        totalAppointments: appointments.length,
+        totalAnimals: animals.length,
+        totalVets: vets.length,
+        totalUsers: users.length
+      });
+      
       // Фильтруем записи на сегодня
       const today = new Date().toISOString().split('T')[0];
-      const todayAppointments = appointments.filter(app => app.date === today);
+      const todayAppointments = appointments.filter(app => {
+        if (!app.date) return false;
+        const appointmentDate = app.date.includes('T') ? app.date.split('T')[0] : app.date;
+        return appointmentDate === today;
+      });
       
-      // Рассчитываем статистику
-      const totalAnimals = animals.length;
-      const todayAppointmentsCount = todayAppointments.length;
-      const activeUsers = users.length;
-      const totalVets = vets.length;
-
-      // Форматируем статистику для отображения
+      // Формируем статистику с реальными данными
       const formattedStats = [
         { 
           title: 'Всего животных', 
-          value: totalAnimals.toLocaleString(), 
-          change: '+0%', // Можно добавить реальную динамику
+          value: animals.length.toString(), 
+          change: '+0%',
           icon: '🐕' 
         },
         { 
           title: 'Записей сегодня', 
-          value: todayAppointmentsCount.toLocaleString(), 
+          value: todayAppointments.length.toString(), 
           change: '+0%', 
           icon: '📅' 
         },
         { 
           title: 'Пользователей', 
-          value: activeUsers.toLocaleString(), 
+          value: users.length.toString(), 
           change: '+0%', 
           icon: '👥' 
         },
         { 
           title: 'Ветеринаров', 
-          value: totalVets.toLocaleString(), 
+          value: vets.length.toString(), 
           change: '+0', 
           icon: '👨‍⚕️' 
         },
@@ -189,69 +145,104 @@ const AdminDashboard = () => {
 
       setStats(formattedStats);
 
-      // Форматируем последние записи (первые 5 сегодняшних или последних)
-      const recentToShow = todayAppointments.length > 0 
-        ? todayAppointments.slice(0, 5)
-        : appointments.slice(0, 5);
+      // Форматируем последние 5 записей
+      const formattedAppointments = appointments.slice(0, 5).map((appointment, index) => {
+        console.log('Обрабатываем запись:', appointment);
+        
+        // Животное
+        let petName = 'Неизвестно';
+        let animalType = 'Неизвестно';
+        
+        if (typeof appointment.animal === 'object' && appointment.animal !== null) {
+          petName = appointment.animal.name || 'Без имени';
+          animalType = appointment.animal.type || appointment.animal.species || 'Неизвестно';
+        } else if (appointment.animalName) {
+          petName = appointment.animalName;
+        } else if (appointment.animal) {
+          petName = appointment.animal;
+        }
+        
+        // Владелец
+        let ownerName = 'Неизвестно';
+        
+        if (typeof appointment.user === 'object' && appointment.user !== null) {
+          ownerName = appointment.user.name || appointment.user.username || appointment.user.email || 'Неизвестно';
+        } else if (typeof appointment.createdBy === 'object' && appointment.createdBy !== null) {
+          ownerName = appointment.createdBy.name || appointment.createdBy.username || appointment.createdBy.email || 'Неизвестно';
+        } else if (appointment.user) {
+          ownerName = appointment.user;
+        } else if (appointment.createdBy) {
+          ownerName = appointment.createdBy;
+        } else if (appointment.ownerName) {
+          ownerName = appointment.ownerName;
+        }
+        
+        // Ветеринар
+        let vetName = 'Не назначен';
+        
+        if (typeof appointment.vet === 'object' && appointment.vet !== null) {
+          vetName = appointment.vet.name || appointment.vet.username || appointment.vet.email || 'Не назначен';
+        } else if (appointment.vet) {
+          vetName = appointment.vet;
+        }
+        
+        // Дата
+        let displayDate = appointment.date || today;
+        if (displayDate && displayDate.includes('T')) {
+          displayDate = displayDate.split('T')[0];
+        }
 
-      const formattedAppointments = await Promise.all(
-        recentToShow.map(async appointment => {
-          try {
-            // Получаем дополнительные данные
-            const animal = animals.find(a => a._id === appointment.animal) || {};
-            const vet = vets.find(v => v._id === appointment.vet) || {};
-            const user = users.find(u => u._id === appointment.user) || {};
-            
-            return {
-              id: appointment._id,
-              pet: animal.name || 'Не указано',
-              owner: user.name || 'Не указано',
-              vet: vet.name || 'Не указано',
-              time: appointment.time || 'Не указано',
-              date: appointment.date || today,
-              status: appointment.status || 'pending',
-              icon: getAnimalIcon(animal.type),
-              animalType: animal.type,
-              service: appointment.service
-            };
-          } catch {
-            return {
-              id: appointment._id,
-              pet: 'Загрузка...',
-              owner: 'Загрузка...',
-              vet: 'Загрузка...',
-              time: appointment.time || 'Не указано',
-              date: appointment.date || today,
-              status: appointment.status || 'pending',
-              icon: '🐾',
-              animalType: 'Не указано',
-              service: appointment.service || 'Не указано'
-            };
-          }
-        })
-      );
+        return {
+          id: appointment._id || `app-${index}`,
+          pet: petName,
+          owner: ownerName,
+          vet: vetName,
+          time: appointment.time || '--:--',
+          date: displayDate,
+          status: appointment.status || 'pending',
+          icon: getAnimalIcon(animalType),
+          animalType: animalType
+        };
+      });
 
+      console.log('Отформатированные записи:', formattedAppointments);
       setRecentAppointments(formattedAppointments);
-      setError(null);
 
     } catch (err) {
       console.error('Ошибка загрузки данных:', err);
-      setError(`Ошибка: ${err.message}. Используются демо-данные.`);
-      setUsingMockData(true);
+      setError(`Ошибка загрузки: ${err.message}. Используются тестовые данные.`);
       
-      // Используем моковые данные
+      // Используем тестовые данные с не нулевыми значениями
       setStats([
-        { title: 'Всего животных', value: '1,245', change: '+12%', icon: '🐕' },
-        { title: 'Записей сегодня', value: '48', change: '+5%', icon: '📅' },
-        { title: 'Пользователей', value: '2,543', change: '+8%', icon: '👥' },
-        { title: 'Ветеринаров', value: '24', change: '+2', icon: '👨‍⚕️' },
+        { title: 'Всего животных', value: '12', change: '+2%', icon: '🐕' },
+        { title: 'Записей сегодня', value: '3', change: '+1', icon: '📅' },
+        { title: 'Пользователей', value: '24', change: '+3%', icon: '👥' },
+        { title: 'Ветеринаров', value: '5', change: '+0', icon: '👨‍⚕️' },
       ]);
       
       setRecentAppointments([
-        { id: 1, pet: 'Барсик', owner: 'Иван Петров', vet: 'Др. Смирнова', time: '10:30', status: 'confirmed', icon: '🐱' },
-        { id: 2, pet: 'Мурка', owner: 'Анна Сидорова', vet: 'Др. Козлов', time: '11:00', status: 'pending', icon: '🐈' },
-        { id: 3, pet: 'Рекс', owner: 'Петр Иванов', vet: 'Др. Смирнова', time: '14:15', status: 'confirmed', icon: '🐕' },
-        { id: 4, pet: 'Шарик', owner: 'Мария Ковалева', vet: 'Др. Петрова', time: '15:30', status: 'cancelled', icon: '🐕' },
+        { 
+          id: 1, 
+          pet: 'Барсик', 
+          owner: 'Иван Петров', 
+          vet: 'Др. Смирнова', 
+          time: '10:30', 
+          date: '2024-01-15',
+          status: 'confirmed', 
+          icon: '🐱',
+          animalType: 'Кот'
+        },
+        { 
+          id: 2, 
+          pet: 'Мурка', 
+          owner: 'Анна Сидорова', 
+          vet: 'Др. Козлов', 
+          time: '11:00', 
+          date: '2024-01-15',
+          status: 'pending', 
+          icon: '🐈',
+          animalType: 'Кошка'
+        },
       ]);
     } finally {
       setLoading(false);
@@ -262,51 +253,28 @@ const AdminDashboard = () => {
   const getAnimalIcon = (animalType) => {
     if (!animalType) return '🐾';
     
-    switch (animalType.toLowerCase()) {
-      case 'кот':
-      case 'кошка':
-      case 'cat':
-        return '🐱';
-      case 'собака':
-      case 'dog':
-        return '🐕';
-      case 'птица':
-      case 'bird':
-        return '🐦';
-      case 'кролик':
-      case 'rabbit':
-        return '🐰';
-      case 'хомяк':
-      case 'hamster':
-        return '🐹';
-      case 'рыба':
-      case 'fish':
-        return '🐟';
-      case 'черепаха':
-      case 'turtle':
-        return '🐢';
-      default:
-        return '🐾';
-    }
+    const type = animalType.toLowerCase();
+    if (type.includes('кот') || type.includes('кошка') || type.includes('cat')) return '🐱';
+    if (type.includes('собака') || type.includes('dog')) return '🐕';
+    if (type.includes('птица') || type.includes('bird')) return '🐦';
+    if (type.includes('кролик') || type.includes('rabbit')) return '🐰';
+    if (type.includes('хомяк') || type.includes('hamster')) return '🐹';
+    if (type.includes('рыба') || type.includes('fish')) return '🐟';
+    if (type.includes('черепаха') || type.includes('turtle')) return '🐢';
+    return '🐾';
   };
 
   const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
       case 'confirmed':
-      case 'active':
         return 'status-confirmed';
       case 'pending':
-      case 'waiting':
         return 'status-pending';
       case 'cancelled':
       case 'canceled':
         return 'status-cancelled';
       case 'completed':
-      case 'done':
         return 'status-completed';
-      case 'no_show':
-      case 'noshow':
-        return 'status-no-show';
       default:
         return '';
     }
@@ -315,43 +283,44 @@ const AdminDashboard = () => {
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
       case 'confirmed':
-      case 'active':
         return 'Подтверждена';
       case 'pending':
-      case 'waiting':
         return 'Ожидание';
       case 'cancelled':
       case 'canceled':
         return 'Отменена';
       case 'completed':
-      case 'done':
         return 'Завершена';
-      case 'no_show':
-      case 'noshow':
-        return 'Не явился';
       default:
         return status || 'Неизвестно';
     }
   };
 
-  // Форматирование даты и времени
-  const formatDateTime = (date, time) => {
+  // Форматирование даты
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Не указано';
+    
     try {
-      if (!date) return time || 'Не указано';
-      const dateObj = new Date(date);
-      const formattedDate = dateObj.toLocaleDateString('ru-RU');
-      return time ? `${formattedDate} ${time}` : formattedDate;
+      // Если дата в формате ISO (с "T")
+      if (dateString.includes('T')) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU');
+      }
+      
+      // Если дата уже в формате YYYY-MM-DD
+      const [year, month, day] = dateString.split('-');
+      if (year && month && day) {
+        return `${day}.${month}.${year}`;
+      }
+      
+      return dateString;
     } catch {
-      return time || date || 'Не указано';
+      return dateString;
     }
   };
 
   const handleNewAppointment = () => {
     navigate('/booking');
-  };
-
-  const handleViewAll = () => {
-    navigate('/admin/appointments');
   };
 
   const handleRefresh = () => {
@@ -376,25 +345,13 @@ const AdminDashboard = () => {
           <h1>Панель управления</h1>
           <p className="dashboard-subtitle">Обзор статистики и управление записями</p>
           {error && (
-            <div className="error-message-small">
+            <div className="error-message">
               ⚠️ {error}
-            </div>
-          )}
-          {usingMockData && (
-            <div className="mock-data-warning">
-              ⚠️ Используются демо-данные
             </div>
           )}
         </div>
         <div className="header-actions">
-          <button 
-            className="btn-secondary"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <span className="btn-icon">🔄</span>
-            Обновить
-          </button>
+          
           <button 
             className="btn-primary"
             onClick={handleNewAppointment}
@@ -431,15 +388,15 @@ const AdminDashboard = () => {
         <div className="table-container">
           <div className="table-header">
             <div className="table-title">
-              <h3>Записи на сегодня</h3>
+              <h3>Последние записи</h3>
               <p className="table-subtitle">
-                {usingMockData ? 'Демо-данные' : 'Последние записи на прием'}
+                Последние записи на прием
               </p>
             </div>
             <div className="table-actions">
               <button 
                 className="btn-link"
-                onClick={handleViewAll}
+                onClick={() => navigate('/admin/appointments')}
               >
                 Смотреть все
               </button>
@@ -453,12 +410,20 @@ const AdminDashboard = () => {
               </button>
             </div>
           </div>
+          
           <div className="table-wrapper">
             {recentAppointments.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📅</div>
                 <h4>Нет записей</h4>
                 <p>Записи на прием отсутствуют</p>
+                <button 
+                  className="btn-primary"
+                  onClick={handleNewAppointment}
+                  style={{marginTop: '16px'}}
+                >
+                  Создать первую запись
+                </button>
               </div>
             ) : (
               <table className="appointments-table">
@@ -467,6 +432,7 @@ const AdminDashboard = () => {
                     <th>Питомец</th>
                     <th>Владелец</th>
                     <th>Ветеринар</th>
+                    <th>Дата</th>
                     <th>Время</th>
                     <th>Статус</th>
                   </tr>
@@ -481,15 +447,14 @@ const AdminDashboard = () => {
                           </div>
                           <div className="pet-details">
                             <span className="pet-name">{appointment.pet}</span>
-                            <span className="pet-type">{appointment.animalType || 'Не указано'}</span>
+                            <span className="pet-type">{appointment.animalType}</span>
                           </div>
                         </div>
                       </td>
                       <td className="owner-name">{appointment.owner}</td>
                       <td className="vet-name">{appointment.vet}</td>
-                      <td className="appointment-time">
-                        {formatDateTime(appointment.date, appointment.time)}
-                      </td>
+                      <td className="appointment-date">{formatDate(appointment.date)}</td>
+                      <td className="appointment-time">{appointment.time}</td>
                       <td>
                         <span className={`status-badge ${getStatusClass(appointment.status)}`}>
                           {getStatusText(appointment.status)}
@@ -533,10 +498,8 @@ const AdminDashboard = () => {
               <span className="data-value">{new Date().toLocaleTimeString('ru-RU')}</span>
             </div>
             <div className="data-info-item">
-              <span className="data-label">Режим:</span>
-              <span className="data-value">
-                {usingMockData ? 'Демо-данные' : 'Реальные данные'}
-              </span>
+              <span className="data-label">Всего записей:</span>
+              <span className="data-value">{recentAppointments.length}</span>
             </div>
           </div>
         </div>

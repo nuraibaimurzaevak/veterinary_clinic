@@ -1,51 +1,62 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+// frontend/src/components/ProtectedRoute.jsx
+import React, { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-const ProtectedRoute = ({ children, requireAdmin = false }) => {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  const [isChecking, setIsChecking] = useState(true);
 
-  if (loading) {
+  useEffect(() => {
+    console.log('🔒 ProtectedRoute: isAuthenticated =', isAuthenticated);
+    
+    // Если loading закончился, показываем результат
+    if (!loading) {
+      setIsChecking(false);
+    }
+  }, [isAuthenticated, loading]);
+
+  // Пока проверяем - показываем загрузку
+  if (isChecking) {
     return (
       <div style={{
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '300px',
-        gap: '20px'
+        alignItems: 'center',
+        height: '100vh',
+        flexDirection: 'column'
       }}>
-        <div style={{
+        <div className="spinner" style={{
           width: '50px',
           height: '50px',
           border: '5px solid #f3f3f3',
-          borderTop: '5px solid #4CAF50',
+          borderTop: '5px solid #3498db',
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }}></div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-        <p style={{ color: '#666', fontSize: '16px', fontWeight: '500' }}>
-          Проверка доступа...
-        </p>
+        <p style={{ marginTop: '20px', color: '#666' }}>Проверка авторизации...</p>
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  // Если не авторизован - редирект
+  if (!isAuthenticated) {
+    console.log('🔄 ProtectedRoute: Редирект на /login');
+    return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && user.role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-
+  // Если авторизован - показываем детей
   return children;
 };
+
+// Добавьте в глобальный CSS
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(style);
 
 export default ProtectedRoute;

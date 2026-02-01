@@ -736,3 +736,155 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Компактные карточки статистики */
+.stats-cards.compact {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card.compact {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid #e5e7eb;
+  min-height: auto;
+}
+
+.stat-card.compact .stat-icon {
+  font-size: 20px;
+  margin-right: 12px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.stat-card.compact .stat-content {
+  flex: 1;
+}
+
+.stat-card.compact .stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.stat-card.compact .stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Стилизация поля фильтра по дате */
+.date-filter-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.date-input.styled {
+  padding: 8px 12px;
+  padding-right: 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #374151;
+  min-width: 150px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-input.styled:hover {
+  border-color: #9ca3af;
+}
+
+.date-input.styled:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.date-input.styled::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  cursor: pointer;
+}
+
+.date-input.styled::before {
+  content: "📅";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.clear-date-btn {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  z-index: 10;
+}
+
+.clear-date-btn:hover {
+  background: #dc2626;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+  .stats-cards.compact {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  
+  .filter-options {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .date-filter-wrapper {
+    width: 100%;
+  }
+  
+  .date-input.styled {
+    width: 100%;
+  }
+}
+
+/* Улучшение внешнего вида фильтров */
+.filters-section {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.filter-options {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

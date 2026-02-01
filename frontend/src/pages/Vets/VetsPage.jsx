@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import API from '../../config/api';
+import API from '../../api/api';
 import './VetsPage.css';
 
 // Временные данные для демонстрации

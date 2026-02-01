@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import API from '../../../../config/api'; // ← Добавляем импорт конфига API
+import api from '../../../../api/axiosConfig'; // Используем axios instance
+import API from '../../../../api/api'; // Импорт конфига API
 import './Animals.css';
 
 const AdminAnimalsPage = () => {
@@ -10,6 +11,7 @@ const AdminAnimalsPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [animalToDelete, setAnimalToDelete] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Форма для добавления животного
   const [animalForm, setAnimalForm] = useState({
@@ -25,11 +27,6 @@ const AdminAnimalsPage = () => {
     createdBy: ''
   });
 
-  // Получение токена
-  const getToken = () => {
-    return localStorage.getItem('token');
-  };
-
   // Загрузка данных
   useEffect(() => {
     loadData();
@@ -38,44 +35,82 @@ const AdminAnimalsPage = () => {
   const loadData = async () => {
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
-      const token = getToken();
-      if (!token) {
-        setError('Требуется авторизация');
-        return;
-      }
-
-      // Загружаем животных и пользователей одновременно с использованием API конфига
+      // Загружаем животных и пользователей одновременно с использованием axios
       const [animalsRes, usersRes] = await Promise.all([
-        fetch(API.ANIMALS.ALL, {  // ← Используем API.ANIMALS.ALL
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }),
-        fetch(API.USERS.ALL, {  // ← Используем API.USERS.ALL
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        api.get(API.ANIMALS.ALL),
+        api.get(API.USERS.ALL)
       ]);
 
-      if (!animalsRes.ok) throw new Error('Ошибка загрузки животных');
-      if (!usersRes.ok) throw new Error('Ошибка загрузки пользователей');
-
-      const animalsData = await animalsRes.json();
-      const usersData = await usersRes.json();
-
+      // Обработка данных животных
+      let animalsData = [];
+      if (Array.isArray(animalsRes.data)) {
+        animalsData = animalsRes.data;
+      } else if (animalsRes.data && typeof animalsRes.data === 'object') {
+        // Проверяем различные варианты структуры
+        if (Array.isArray(animalsRes.data.animals)) {
+          animalsData = animalsRes.data.animals;
+        } else if (Array.isArray(animalsRes.data.data)) {
+          animalsData = animalsRes.data.data;
+        } else if (Array.isArray(animalsRes.data.result)) {
+          animalsData = animalsRes.data.result;
+        } else {
+          // Если не нашли массив, преобразуем объект в массив
+          animalsData = Object.values(animalsRes.data);
+        }
+      }
+      
+      // Гарантируем, что это массив
+      if (!Array.isArray(animalsData)) {
+        animalsData = [];
+      }
+      
       setAnimals(animalsData);
+
+      // Обработка данных пользователей
+      let usersData = [];
+      if (Array.isArray(usersRes.data)) {
+        usersData = usersRes.data;
+      } else if (usersRes.data && typeof usersRes.data === 'object') {
+        if (Array.isArray(usersRes.data.users)) {
+          usersData = usersRes.data.users;
+        } else if (Array.isArray(usersRes.data.data)) {
+          usersData = usersRes.data.data;
+        } else {
+          usersData = Object.values(usersRes.data);
+        }
+      }
+      
+      if (!Array.isArray(usersData)) {
+        usersData = [];
+      }
+      
       setUsers(usersData);
 
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
-      setError('Не удалось загрузить данные');
+      
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.message || `Ошибка ${status}`;
+        
+        if (status === 401) {
+          setError('Требуется авторизация');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login';
+        } else if (status === 403) {
+          setError('У вас нет прав для доступа к этой странице');
+        } else {
+          setError(message);
+        }
+      } else if (error.request) {
+        setError('Не удалось подключиться к серверу');
+      } else {
+        setError('Ошибка: ' + error.message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -94,8 +129,6 @@ const AdminAnimalsPage = () => {
     }
 
     try {
-      const token = getToken();
-      
       // Подготовка данных для отправки
       const animalData = {
         name: animalForm.name,
@@ -109,34 +142,38 @@ const AdminAnimalsPage = () => {
         gender: animalForm.gender,
         color: animalForm.color || '',
         microchipNumber: animalForm.microchipNumber || '',
-        ownerType: animalForm.ownerType
+        ownerType: animalForm.ownerType,
+        createdBy: animalForm.createdBy
       };
 
-      // Используем API.ANIMALS.CREATE
-      const response = await fetch(API.ANIMALS.CREATE, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(animalData)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Ошибка при добавлении животного');
-      }
-
+      // Используем axios для отправки
+      const response = await api.post(API.ANIMALS.CREATE, animalData);
+      
+      // Показываем успешное сообщение
+      setSuccessMessage('Животное успешно добавлено!');
+      
       // Обновляем список
-      loadData();
-      setShowAddModal(false);
-      resetForm();
-      alert('Животное успешно добавлено!');
+      await loadData();
+      
+      // Закрываем модалку с задержкой
+      setTimeout(() => {
+        setShowAddModal(false);
+        resetForm();
+      }, 1000);
 
     } catch (error) {
       console.error('Ошибка добавления животного:', error);
-      alert(error.message || 'Произошла ошибка при добавлении животного');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Ошибка ${error.response.status}`;
+        alert(`Ошибка добавления: ${message}`);
+      } else if (error.request) {
+        alert('Не удалось подключиться к серверу');
+      } else {
+        alert('Ошибка: ' + error.message);
+      }
     }
   };
 
@@ -147,32 +184,43 @@ const AdminAnimalsPage = () => {
   };
 
   const confirmDelete = async () => {
+    if (!animalToDelete) return;
+
     try {
-      const token = getToken();
-      // Используем API.ANIMALS.DELETE с ID животного
-      const response = await fetch(API.ANIMALS.DELETE(animalToDelete._id), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Используем axios для удаления
+      await api.delete(API.ANIMALS.DELETE(animalToDelete._id));
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Ошибка при удалении животного');
-      }
-
-      // Удаляем из списка
+      // Удаляем из списка локально
       setAnimals(prev => prev.filter(animal => animal._id !== animalToDelete._id));
+      
+      // Показываем сообщение
+      setSuccessMessage('Животное успешно удалено');
+      
+      // Закрываем модалку
       setShowDeleteModal(false);
       setAnimalToDelete(null);
-      alert('Животное удалено');
+      
+      // Убираем сообщение через 3 секунды
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
 
     } catch (error) {
       console.error('Ошибка удаления животного:', error);
-      alert(error.message || 'Произошла ошибка при удалении животного');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 
+                       error.response.data?.error || 
+                       `Ошибка ${error.response.status}`;
+        alert(`Ошибка удаления: ${message}`);
+      } else if (error.request) {
+        alert('Не удалось подключиться к серверу');
+      } else {
+        alert('Ошибка: ' + error.message);
+      }
+      
+      setShowDeleteModal(false);
+      setAnimalToDelete(null);
     }
   };
 
@@ -206,6 +254,9 @@ const AdminAnimalsPage = () => {
 
   // Рендер списка животных
   const renderAnimalsList = () => {
+    // Гарантируем, что animals это массив
+    const animalsArray = Array.isArray(animals) ? animals : [];
+    
     if (isLoading) {
       return (
         <div className="loading-state">
@@ -228,7 +279,7 @@ const AdminAnimalsPage = () => {
       );
     }
 
-    if (animals.length === 0) {
+    if (animalsArray.length === 0) {
       return (
         <div className="empty-state">
           <div className="empty-icon">🐕</div>
@@ -260,7 +311,7 @@ const AdminAnimalsPage = () => {
             </tr>
           </thead>
           <tbody>
-            {animals.map(animal => {
+            {animalsArray.map(animal => {
               const typeInfo = getTypeInfo(animal.type);
               return (
                 <tr key={animal._id}>
@@ -301,8 +352,8 @@ const AdminAnimalsPage = () => {
                     )}
                   </td>
                   <td>
-                    <span className={`status-badge ${animal.status}`}>
-                      {animal.status === 'active' ? 'Активен' : 'В архиве'}
+                    <span className={`status-badge ${animal.status || 'active'}`}>
+                      {animal.status === 'archived' ? 'В архиве' : 'Активен'}
                     </span>
                   </td>
                   <td>
@@ -335,11 +386,23 @@ const AdminAnimalsPage = () => {
           
           <button 
             className="btn btn-primary"
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
           >
             + Добавить животное
           </button>
         </div>
+
+        {/* Сообщение об успехе */}
+        {successMessage && (
+          <div className="success-message">
+            <div className="success-icon">✅</div>
+            <span>{successMessage}</span>
+            <button className="close-btn" onClick={() => setSuccessMessage('')}>×</button>
+          </div>
+        )}
 
         {renderAnimalsList()}
       </div>
@@ -362,7 +425,7 @@ const AdminAnimalsPage = () => {
             </div>
             
             <div className="modal-body">
-              <form className="animal-form">
+              <form className="animal-form" onSubmit={(e) => e.preventDefault()}>
                 <div className="form-group">
                   <label htmlFor="name">Имя животного *</label>
                   <input

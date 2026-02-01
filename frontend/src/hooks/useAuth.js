@@ -1,9 +1,14 @@
-// frontend/src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext({});
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -39,13 +44,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = (token, userData) => {
+    console.log('📝 AuthContext.login вызван');
     localStorage.setItem('token', token);
     localStorage.setItem('accessToken', token); // для совместимости
     localStorage.setItem('user', JSON.stringify(userData));
     
     setUser(userData);
     setIsAuthenticated(true);
-    console.log('✅ AuthContext: Пользователь вошел');
+    console.log('✅ AuthContext: Пользователь вошел', userData.email);
+    
+    // Отправляем событие для других компонентов
+    window.dispatchEvent(new Event('authChange'));
   };
 
   const logout = () => {
@@ -58,17 +67,44 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     console.log('✅ AuthContext: Пользователь вышел');
+    
+    window.dispatchEvent(new Event('authChange'));
+  };
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    
+    try {
+      const response = await fetch('https://vet-clinic-fhfh.onrender.com/api/auth/verify', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        return true;
+      }
+    } catch (error) {
+      console.error('Ошибка проверки токена:', error);
+    }
+    
+    return false;
+  };
+
+  const value = {
+    isAuthenticated,
+    user,
+    loading,
+    login,
+    logout,
+    checkAuth,
+    checkInitialAuth
   };
 
   return (
-    <AuthContext.Provider value={{
-      isAuthenticated,
-      user,
-      loading,
-      login,
-      logout,
-      checkInitialAuth
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

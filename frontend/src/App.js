@@ -1,6 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; 
-import { AuthProvider } from './context/AuthContext';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/layout/Header/Header';
 import Home from './pages/HomePages/HomePage';
 import Booking from './pages/Booking/Booking';
@@ -13,83 +12,40 @@ import AdminVetsPage from './pages/Admin/Vets/AdminVetsPage';
 import VetsPage from './pages/Vets/VetsPage';
 import AdminAnimalsPage from './pages/Admin/Animals/Animals/Animals';
 import AppointmentsAdmin from './pages/Admin/Appointments/AllAppointments/AllAppointment';
-import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
+import TestStorage from './pages/Test/TestStorage.js'; // для теста
 import './App.css';
 
-// Временные компоненты
-const AppointmentDetails = () => <div>Детали записи (в разработке)</div>;
-
 function App() {
+  console.log('🔄 App.js запущен');
+  
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Header />
-          <main className="main-content">
-            <Routes>
-              {/* Публичные маршруты */}
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/vets" element={<VetsPage />} />
-              
-              {/* Защищенные маршруты (требуют авторизации) */}
-              <Route path="/booking" element={
-                <ProtectedRoute>
-                  <Booking />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/animals" element={
-                <ProtectedRoute>
-                  <MyAnimalsPage />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/appointments" element={
-                <ProtectedRoute>
-                  <Appointments />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/appointments/:id" element={
-                <ProtectedRoute>
-                  <AppointmentDetails />
-                </ProtectedRoute>
-              } />
-              
-              {/* Админские маршруты */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute requireAdmin>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/admin/vets" element={
-                <ProtectedRoute requireAdmin>
-                  <AdminVetsPage />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/admin/animals" element={
-                <ProtectedRoute requireAdmin>
-                  <AdminAnimalsPage />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/admin/appointments" element={
-                <ProtectedRoute requireAdmin>
-                  <AppointmentsAdmin />
-                </ProtectedRoute>
-              } />
+    <Router>
+      <div className="App">
+        <Header />
+        <main className="main-content">
+          <Routes>
+            {/* Публичные маршруты */}
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/vets" element={<VetsPage />} />
+            <Route path="/test-storage" element={<TestStorage />} />
+            
+            {/* ВСЕ ОСТАЛЬНЫЕ - БЕО ЗАЩИТЫ */}
+            <Route path="/booking" element={<Booking />} />
+            <Route path="/animals" element={<MyAnimalsPage />} />
+            <Route path="/appointments" element={<Appointments />} />
+            <Route path="/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/vets" element={<AdminVetsPage />} />
+            <Route path="/admin/animals" element={<AdminAnimalsPage />} />
+            <Route path="/admin/appointments" element={<AppointmentsAdmin />} />
 
-              {/* 404 страница */}
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </main>
-        </div>
-      </Router>
-    </AuthProvider>
+            {/* 404 страница */}
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 }
 

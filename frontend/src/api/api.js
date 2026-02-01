@@ -1,4 +1,4 @@
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000/api';
+const API_URL = 'https://vet-clinic-fhfh.onrender.com/api';
 
 export default {
   // Базовый URL
