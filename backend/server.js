@@ -14,7 +14,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'https://lucky-parfait-382f06.netlify.app',
+      'https://silly-pastelito-5cb41f.netlify.app',
       'http://localhost:3000',
       'http://localhost:5173',
       'http://127.0.0.1:3000',
