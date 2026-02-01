@@ -1,243 +1,244 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import './Header.css';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import './LoginPage.css';
 
-const Header = () => {
+const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   
-  // 🔥 ОТЛАДКА
-  console.log('🎯 Header запускается на пути:', location.pathname);
-  console.log('🔐 localStorage при запуске Header:', {
-    token: localStorage.getItem('token') ? '✅ Есть' : '❌ Нет',
-    user: localStorage.getItem('user') ? '✅ Есть' : '❌ Нет'
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    rememberMe: false
   });
   
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const menuRef = useRef(null);
-  const burgerRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  // 1️⃣ ПРОВЕРКА: ЕСТЬ ЛИ ПОЛЬЗОВАТЕЛЬ?
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isLoggedIn = !!token && !!user;
-  const isAdmin = user?.role === 'admin';
-  const userName = user?.firstName || user?.name || 'Пользователь';
-
-  // 2️⃣ СЛУШАЕМ СОБЫТИЯ ДЛЯ ПЕРЕЗАГРУЗКИ
+  // Загружаем сохраненный email при монтировании
   useEffect(() => {
-    console.log('🔔 Header: Начинаю слушать события storage');
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    const rememberedMe = localStorage.getItem('rememberMe') === 'true';
     
-    const handleStorageChange = () => {
-      console.log('🔔 Header: Получил событие storage - перерендериваюсь');
-      // Принудительный перерендер при изменении localStorage
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Также слушаем кастомные события
-    window.addEventListener('authChange', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('authChange', handleStorageChange);
-    };
+    if (rememberedEmail && rememberedMe) {
+      setFormData(prev => ({
+        ...prev,
+        email: rememberedEmail,
+        rememberMe: true
+      }));
+    }
   }, []);
 
-  // 3️⃣ ЭФФЕКТЫ ДЛЯ СКРОЛЛА И МЕНЮ
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target) &&
-          burgerRef.current && !burgerRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Валидация
+      if (!formData.email.trim() || !formData.password.trim()) {
+        throw new Error('Заполните все поля');
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
-  useEffect(() => {
-    document.body.style.overflow = isMenuOpen ? 'hidden' : 'auto';
-    return () => { document.body.style.overflow = 'auto'; };
-  }, [isMenuOpen]);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        throw new Error('Введите корректный email');
+      }
 
-  // 4️⃣ ОБРАБОТЧИКИ
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  const handleNavClick = () => setIsMenuOpen(false);
-  const handleLogin = () => { navigate('/login'); setIsMenuOpen(false); };
-  const handleRegister = () => { navigate('/register'); setIsMenuOpen(false); };
+      // Имитация API запроса
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Сохраняем данные для "Запомнить меня"
+      if (formData.rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberMe');
+      }
 
-  const handleLogout = () => {
-    console.log('🚪 Header: Выход из системы');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('rememberedEmail');
-    localStorage.removeItem('rememberMe');
-    
-    // Отправляем ВСЕ события
-    window.dispatchEvent(new Event('storage'));
-    window.dispatchEvent(new CustomEvent('authChange'));
-    
-    navigate('/');
-  };
+      // Создаем мок-пользователя
+      const mockUser = {
+        id: '1',
+        email: formData.email,
+        firstName: formData.email.split('@')[0],
+        lastName: 'Тестовый',
+        role: 'user'
+      };
 
-  // 5️⃣ ССЫЛКИ
-  const getLinksForUser = () => {
-    if (!isLoggedIn) {
-      return [{ to: "/", label: "Главная", icon: "🏠" }];
+      const mockToken = 'mock-jwt-token-' + Date.now();
+
+      // Сохраняем в localStorage
+      localStorage.setItem('token', mockToken);
+      localStorage.setItem('user', JSON.stringify(mockUser));
+
+      // Триггерим событие для обновления Header
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('authChange'));
+
+      // Перенаправляем на главную
+      navigate('/');
+
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (isAdmin) {
-      return [
-        { to: "/dashboard", label: "Панель управления", icon: "📊" },
-        { to: "/admin/animals", label: "Животные", icon: "🐕" },
-        { to: "/admin/appointments", label: "Записи", icon: "📋" },
-      ];
-    }
-
-    return [
-      { to: "/", label: "Главная", icon: "🏠" },
-      { to: "/booking", label: "Запись", icon: "📅" },
-      { to: "/animals", label: "Мои питомцы", icon: "🐕" },
-      { to: "/appointments", label: "Мои записи", icon: "📋" },
-    ];
   };
-
-  const links = getLinksForUser();
 
   return (
-    <>
-      <header className={`header ${isScrolled ? 'scrolled' : ''} ${isAdmin ? 'admin-header' : ''}`}>
-        <div className="header-container">
-          <div className="header-content">
-            {/* Логотип */}
-            <div className="logo">
-              <Link to="/" className="logo-link">
-                <span className="logo-icon">🐾</span>
-                <span className="logo-text">VetClinic</span>
-                {isAdmin && <span className="admin-label">ADMIN</span>}
-              </Link>
+    <div className="login-page">
+      <div className="login-container">
+        
+        {/* Левая часть с приветствием */}
+        <div className="login-left">
+          <div className="welcome-content">
+            <div className="welcome-logo">
+              <span className="logo-icon">🐾</span>
+              <span className="logo-text">VetClinic</span>
             </div>
-
-            {/* Навигация */}
-            <nav className="desktop-nav">
-              {links.map((link, index) => (
-                <Link
-                  key={index}
-                  to={link.to}
-                  className={`nav-link ${location.pathname === link.to ? 'active' : ''}`}
-                  onClick={handleNavClick}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-
-            {/* Кнопки авторизации */}
-            <div className="desktop-auth">
-              {isLoggedIn ? (
-                <div className="user-section">
-                  <span className="user-greeting">
-                    Привет, <span className="user-name">{userName}</span>
-                    {isAdmin && <span className="admin-badge">👑</span>}
-                  </span>
-                  <button className="btn btn-logout" onClick={handleLogout}>
-                    Выйти
-                  </button>
-                </div>
-              ) : (
-                <div className="auth-section">
-                  <button className="btn btn-login" onClick={handleLogin}>
-                    Войти
-                  </button>
-                  <button className="btn btn-register" onClick={handleRegister}>
-                    Регистрация
-                  </button>
-                </div>
-              )}
+            <h1 className="welcome-title">
+              С возвращением!
+            </h1>
+            <p className="welcome-subtitle">
+              Войдите в свой аккаунт, чтобы продолжить
+            </p>
+            <div className="welcome-features">
+              <div className="feature">
+                <span className="feature-icon">📅</span>
+                <span>Записывайте питомцев онлайн</span>
+              </div>
+              <div className="feature">
+                <span className="feature-icon">🐕</span>
+                <span>Управляйте историей питомцев</span>
+              </div>
+              <div className="feature">
+                <span className="feature-icon">🔔</span>
+                <span>Получайте уведомления</span>
+              </div>
             </div>
-
-            {/* Бургер меню */}
-            <button 
-              ref={burgerRef}
-              className={`menu-toggle ${isMenuOpen ? 'active' : ''}`}
-              onClick={toggleMenu}
-              aria-label="Меню"
-              aria-expanded={isMenuOpen}
-            >
-              <span className="menu-toggle-line"></span>
-              <span className="menu-toggle-line"></span>
-              <span className="menu-toggle-line"></span>
-            </button>
           </div>
         </div>
-      </header>
 
-      {/* Отступ */}
-      <div className="header-spacer"></div>
+        {/* Правая часть с формой */}
+        <div className="login-right">
+          <div className="form-container">
+            <div className="form-header">
+              <h2>Вход в аккаунт</h2>
+              <p>Пожалуйста, введите ваши данные</p>
+            </div>
 
-      {/* Мобильное меню */}
-      {isMenuOpen && (
-        <>
-          <div className="menu-overlay" onClick={() => setIsMenuOpen(false)} />
-          <nav ref={menuRef} className="mobile-menu">
-            <div className="mobile-menu-content">
-              <div className="mobile-nav-links">
-                {links.map((link, index) => (
-                  <Link
-                    key={index}
-                    to={link.to}
-                    className={`mobile-nav-link ${location.pathname === link.to ? 'active' : ''}`}
-                    onClick={handleNavClick}
-                  >
-                    <span className="nav-icon">{link.icon}</span>
-                    <span className="nav-label">{link.label}</span>
-                  </Link>
-                ))}
+            <form onSubmit={handleSubmit} className="login-form">
+              {error && (
+                <div className="error-message">
+                  <span className="error-icon">⚠️</span>
+                  {error}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <div className="input-with-icon">
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="example@email.com"
+                    className="form-input"
+                    disabled={isLoading}
+                    required
+                  />
+                  <span className="input-icon">✉️</span>
+                </div>
               </div>
 
-              <div className="mobile-user-section">
-                {isLoggedIn ? (
+              <div className="form-group">
+                <label htmlFor="password">Пароль</label>
+                <div className="input-with-icon">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    className="form-input"
+                    disabled={isLoading}
+                    required
+                  />
+                  <span className="input-icon">🔒</span>
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? "🙈" : "👁️"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-options">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="rememberMe"
+                    checked={formData.rememberMe}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                  <span className="checkbox-custom"></span>
+                  Запомнить меня
+                </label>
+                <Link to="/forgot-password" className="forgot-password">
+                  Забыли пароль?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                className="submit-btn"
+                disabled={isLoading}
+              >
+                {isLoading ? (
                   <>
-                    <div className="mobile-user-info">
-                      <div className="mobile-user-greeting">
-                        Привет, <span className="mobile-user-name">{userName}</span>
-                        {isAdmin && <span className="mobile-admin-badge">👑 Админ</span>}
-                      </div>
-                      <div className="user-role">
-                        {isAdmin ? 'Администратор' : 'Пользователь'}
-                      </div>
-                    </div>
-                    <button className="mobile-btn mobile-btn-logout" onClick={handleLogout}>
-                      Выйти
-                    </button>
+                    <span className="spinner"></span>
+                    Вход...
                   </>
                 ) : (
-                  <div className="mobile-auth-buttons">
-                    <button className="mobile-btn mobile-btn-login" onClick={handleLogin}>
-                      Войти
-                    </button>
-                    <button className="mobile-btn mobile-btn-register" onClick={handleRegister}>
-                      Регистрация
-                    </button>
-                  </div>
+                  'Войти'
                 )}
+              </button>
+
+              <div className="divider">
+                <span>или</span>
               </div>
-            </div>
-          </nav>
-        </>
-      )}
-    </>
+
+              <div className="alternative-login">
+                <button type="button" className="google-btn">
+                  <span className="google-icon">G</span>
+                  Войти через Google
+                </button>
+              </div>
+
+              <div className="signup-link">
+                Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
-export default Header;
+export default LoginPage;
