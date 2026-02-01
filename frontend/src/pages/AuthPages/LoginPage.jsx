@@ -5,21 +5,26 @@ import './LoginPage.css';
 // 🔥 ИСПОЛЬЗУЕМ ДЕПЛОЙНУТЫЙ API
 const API_URL = 'https://vet-clinic-fhfh.onrender.com/api';
 
-const Login = () => {
+const LoginPage = () => {
   const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false
   });
-  const [errors, setErrors] = useState({});
+  
   const [isLoading, setIsLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
+  // Загружаем сохраненный email при монтировании
   useEffect(() => {
     const rememberedEmail = localStorage.getItem('rememberedEmail');
-    if (rememberedEmail) {
+    const rememberedMe = localStorage.getItem('rememberMe') === 'true';
+    
+    if (rememberedEmail && rememberedMe) {
       setFormData(prev => ({
         ...prev,
         email: rememberedEmail,
@@ -28,51 +33,37 @@ const Login = () => {
     }
   }, []);
 
-  const handleChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
     
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
-    if (loginError) setLoginError('');
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Введите email';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Введите корректный email';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Введите пароль';
-    }
-    
-    return newErrors;
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-    
     setIsLoading(true);
-    setLoginError('');
+    setError('');
     setDebugInfo('');
-    
+
     try {
+      // Валидация
+      if (!formData.email.trim() || !formData.password.trim()) {
+        throw new Error('Заполните все поля');
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        throw new Error('Введите корректный email');
+      }
+
       console.log('=== 🔐 ЛОГИН ===');
       console.log('📧 Email:', formData.email);
       console.log('🌐 API URL:', API_URL);
-      
+
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -95,7 +86,6 @@ const Login = () => {
       console.log('✅ Вход успешен!', data.user.email);
       
       // 🔥 КРИТИЧЕСКИ ВАЖНО: Сохраняем токен ТОЧНО так же как при регистрации
-      // Регистрация сохраняет как 'token', логин тоже должен сохранять как 'token'
       const token = data.token || data.accessToken;
       if (!token) {
         throw new Error('Токен не получен от сервера');
@@ -117,8 +107,10 @@ const Login = () => {
       // Запоминаем email если нужно
       if (formData.rememberMe) {
         localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberMe', 'true');
       } else {
         localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberMe');
       }
       
       // Проверяем что токен работает
@@ -164,180 +156,142 @@ const Login = () => {
       
     } catch (error) {
       console.error('❌ Ошибка входа:', error);
-      setLoginError(error.message || 'Ошибка при входе. Попробуйте снова.');
+      setError(error.message || 'Ошибка при входе. Попробуйте снова.');
       setDebugInfo(`❌ ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 🔥 Функция для проверки API
-  const checkAPI = async () => {
-    try {
-      const response = await fetch(`${API_URL}/health`);
-      const data = await response.json();
-      alert(`✅ API работает!\nСтатус: ${data.status}\nMongoDB: ${data.mongodb}`);
-    } catch (error) {
-      alert(`❌ API недоступен: ${error.message}`);
-    }
-  };
-
-  // 🔥 Функция для проверки авторизации
-  const testAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('❌ Токен не найден в localStorage');
-      return;
-    }
-    
-    try {
-      const response = await fetch(`${API_URL}/auth/verify`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        alert('✅ Токен валиден!');
-      } else {
-        alert('❌ Токен невалиден');
-      }
-    } catch (error) {
-      alert(`❌ Ошибка проверки: ${error.message}`);
-    }
-  };
-
   return (
-    <div className="auth-page">
+    <div className="login-page">
       <div className="container">
-        <div className="auth-card">
-          <div className="auth-header">
-            <h1>Вход в аккаунт</h1>
-            <p>Введите ваши данные для входа</p>
+        <div className="login-wrapper">
+          {/* Левая часть - информация */}
+          <div className="login-info">
+            <div className="login-info-content">
+              <h1 className="login-title">С возвращением!</h1>
+              <p className="login-subtitle">
+                Войдите в свой аккаунт, чтобы получить доступ ко всем функциям ветеринарной клиники
+              </p>
+              
+              <div className="login-features">
+                <div className="feature-item">
+                  <span className="feature-icon">🐕</span>
+                  <div className="feature-text">
+                    <h3>Управление питомцами</h3>
+                    <p>Добавляйте и отслеживайте историю ваших животных</p>
+                  </div>
+                </div>
+                
+                <div className="feature-item">
+                  <span className="feature-icon">📅</span>
+                  <div className="feature-text">
+                    <h3>Онлайн записи</h3>
+                    <p>Записывайтесь на прием в удобное время</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          {loginError && (
-            <div className="server-error">
-              ⚠️ {loginError}
-            </div>
-          )}
-          
-          {debugInfo && (
-            <div className={`debug-message ${debugInfo.includes('✅') ? 'success' : 'warning'}`}>
-              {debugInfo}
-            </div>
-          )}
-          
-          <div className="api-info">
-            <small>API: {API_URL}</small>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="form-group">
-              <label className="form-label">Email *</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className={`form-input ${errors.email ? 'error' : ''}`}
-                placeholder="ivan@example.com"
-                disabled={isLoading}
-              />
-              {errors.email && <span className="error">{errors.email}</span>}
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label">Пароль *</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                placeholder="Введите пароль"
-                disabled={isLoading}
-              />
-              {errors.password && <span className="error">{errors.password}</span>}
-            </div>
-            
-            <div className="form-options">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  name="rememberMe"
-                  checked={formData.rememberMe}
-                  onChange={handleChange}
+
+          {/* Правая часть - форма */}
+          <div className="login-form-container">
+            <div className="login-form-card">
+              <div className="form-header">
+                <h2>Вход в аккаунт</h2>
+                <p>Введите ваши данные для входа</p>
+              </div>
+              
+              {/* Оповещения об ошибках */}
+              {error && (
+                <div className="alert alert-error">
+                  <span className="alert-icon">⚠️</span>
+                  {error}
+                </div>
+              )}
+              
+              {debugInfo && (
+                <div className="alert alert-info">
+                  <span className="alert-icon">ℹ️</span>
+                  {debugInfo}
+                </div>
+              )}
+              
+              <form onSubmit={handleSubmit} className="login-form">
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="form-input"
+                    placeholder="example@email.com"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Пароль</label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="form-input"
+                    placeholder="••••••••"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+                
+                <div className="form-options">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="rememberMe"
+                      checked={formData.rememberMe}
+                      onChange={handleInputChange}
+                      disabled={isLoading}
+                    />
+                    <span className="checkbox-custom"></span>
+                    <span className="checkbox-text">Запомнить меня</span>
+                  </label>
+                  
+                  <button type="button" className="forgot-password">
+                    Забыли пароль?
+                  </button>
+                </div>
+                
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-block"
                   disabled={isLoading}
-                />
-                <span className="checkbox-text">Запомнить меня</span>
-              </label>
-            </div>
-            
-            <button 
-              type="submit" 
-              className="submit-btn"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Вход...' : 'Войти'}
-            </button>
-            
-            <div className="form-footer">
-              <p>Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>
-            </div>
-          </form>
-          
-          {/* Отладочная информация */}
-          <div className="debug-info">
-            <h4>🔧 Отладка:</h4>
-            <div className="debug-buttons">
-              <button
-                onClick={checkAPI}
-                className="debug-btn"
-              >
-                Проверить API
-              </button>
-              
-              <button
-                onClick={testAuth}
-                className="debug-btn"
-              >
-                Проверить токен
-              </button>
-              
-              <button
-                onClick={() => {
-                  console.log('=== 🔍 LOCALSTORAGE ===');
-                  console.log('token:', localStorage.getItem('token'));
-                  console.log('accessToken:', localStorage.getItem('accessToken'));
-                  console.log('user:', localStorage.getItem('user'));
-                  alert('Проверьте консоль браузера (F12)');
-                }}
-                className="debug-btn"
-              >
-                Показать localStorage
-              </button>
-              
-              <button
-                onClick={() => {
-                  localStorage.clear();
-                  alert('LocalStorage очищен');
-                  window.location.reload();
-                }}
-                className="debug-btn danger"
-              >
-                Очистить данные
-              </button>
-            </div>
-            
-            <div className="current-token">
-              <h5>Текущий токен:</h5>
-              <code>
-                {localStorage.getItem('token') 
-                  ? `${localStorage.getItem('token').substring(0, 30)}...` 
-                  : '❌ Не найден'}
-              </code>
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="spinner"></span>
+                      Вход...
+                    </>
+                  ) : 'Войти'}
+                </button>
+                
+                <div className="form-footer">
+                  <p>
+                    Нет аккаунта?{' '}
+                    <Link to="/register" className="link">
+                      Зарегистрироваться
+                    </Link>
+                  </p>
+                  <p className="back-home">
+                    <Link to="/" className="link">
+                      ← Вернуться на главную
+                    </Link>
+                  </p>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -346,4 +300,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default LoginPage;
