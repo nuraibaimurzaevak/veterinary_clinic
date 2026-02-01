@@ -8,15 +8,29 @@ require('dotenv').config();
 const app = express();
 
 // ==================== CORS НАСТРОЙКИ ====================
-// Исправлено для вашего фронтенда на Netlify
 const corsOptions = {
-  origin: [
-    'https://monumental-hotteok-00260b.netlify.app', // Ваш фронтенд
-    'http://localhost:3000', // Для локальной разработки
-  ],
+  origin: function (origin, callback) {
+    // Разрешаем запросы без origin (мобильные приложения, Postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://lucky-parfait-382f06.netlify.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://localhost:10000'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
 };
 
 app.use(cors(corsOptions));
@@ -24,6 +38,14 @@ app.use(express.json());
 
 // Для preflight запросов
 app.options('*', cors(corsOptions));
+
+// Дополнительные CORS headers
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  next();
+});
 
 // ==================== ПОДКЛЮЧЕНИЕ К MONGODB ====================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/vetclinic';
@@ -40,7 +62,6 @@ mongoose.connect(MONGODB_URI, {
 
 // ==================== МОДЕЛИ ====================
 
-// Модель пользователя
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true },
@@ -48,11 +69,11 @@ const userSchema = new mongoose.Schema({
   lastName: { type: String, required: true },
   phone: { type: String, required: true },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  refreshToken: { type: String } // Добавил для refresh токенов
 });
 const User = mongoose.model('User', userSchema);
 
-// Модель животного
 const animalSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { 
@@ -88,7 +109,6 @@ const animalSchema = new mongoose.Schema({
 });
 const Animal = mongoose.model('Animal', animalSchema);
 
-// Модель ветеринара
 const vetSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -140,7 +160,6 @@ const vetSchema = new mongoose.Schema({
 });
 const Vet = mongoose.model('Vet', vetSchema);
 
-// Модель записи на прием
 const appointmentSchema = new mongoose.Schema({
   animal: {
     type: mongoose.Schema.Types.ObjectId,
@@ -191,25 +210,83 @@ const Appointment = mongoose.model('Appointment', appointmentSchema);
 
 // ==================== MIDDLEWARE ====================
 
-// Аутентификация
-const authenticateToken = async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
+// Генерация токенов
+const generateTokens = (user) => {
+  const accessToken = jwt.sign(
+    { id: user._id, email: user.email, role: user.role },
+    process.env.JWT_SECRET || 'vetclinic_secret_2024_access',
+    { expiresIn: '15m' } // Короткоживущий токен
+  );
   
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Требуется авторизация' });
-  }
+  const refreshToken = jwt.sign(
+    { id: user._id },
+    process.env.JWT_REFRESH_SECRET || 'vetclinic_secret_2024_refresh',
+    { expiresIn: '7d' } // Долгоживущий токен
+  );
+  
+  return { accessToken, refreshToken };
+};
 
+// Аутентификация - УЛУЧШЕННАЯ ВЕРСИЯ
+const authenticateToken = async (req, res, next) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vetclinic_secret_2024');
-    req.user = await User.findById(decoded.id).select('-password');
+    // 1. Проверяем Authorization header
+    let token = null;
+    const authHeader = req.headers.authorization;
     
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: 'Пользователь не найден' });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
     }
+    
+    // 2. Если нет в заголовке, проверяем в cookies (если используете)
+    if (!token && req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+    }
+    
+    // 3. Если нет токена - 401
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Требуется авторизация' 
+      });
+    }
+
+    // 4. Валидируем токен
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'vetclinic_secret_2024_access');
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Токен истек',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
+      throw error;
+    }
+
+    // 5. Ищем пользователя
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Пользователь не найден' 
+      });
+    }
+    
+    // 6. Добавляем пользователя в запрос
+    req.user = user;
+    req.token = token;
     
     next();
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Недействительный токен' });
+    console.error('Auth middleware error:', error);
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Недействительный токен' 
+    });
   }
 };
 
@@ -218,13 +295,16 @@ const isAdmin = (req, res, next) => {
   if (req.user.role === 'admin') {
     next();
   } else {
-    return res.status(403).json({ success: false, message: 'Требуются права администратора' });
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Требуются права администратора' 
+    });
   }
 };
 
 // ==================== РОУТЫ ====================
 
-// Health check для Render
+// Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
@@ -234,7 +314,133 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Регистрация пользователя
+// 🔥 НОВЫЙ ЭНДПОИНТ: Проверка токена (которого не было!)
+app.get('/api/auth/verify', authenticateToken, async (req, res) => {
+  try {
+    const userResponse = {
+      id: req.user._id,
+      email: req.user.email,
+      firstName: req.user.firstName,
+      lastName: req.user.lastName,
+      phone: req.user.phone,
+      role: req.user.role,
+      createdAt: req.user.createdAt
+    };
+    
+    res.json({
+      success: true,
+      message: 'Токен валиден',
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('Verify error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Ошибка проверки токена' 
+    });
+  }
+});
+
+// 🔥 НОВЫЙ ЭНДПОИНТ: Обновление токена
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Refresh token не предоставлен' 
+      });
+    }
+
+    // Проверяем refresh token
+    const decoded = jwt.verify(
+      refreshToken, 
+      process.env.JWT_REFRESH_SECRET || 'vetclinic_secret_2024_refresh'
+    );
+    
+    // Ищем пользователя
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Пользователь не найден' 
+      });
+    }
+    
+    // Проверяем, совпадает ли refresh token с сохраненным
+    if (user.refreshToken !== refreshToken) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Недействительный refresh token' 
+      });
+    }
+    
+    // Генерируем новые токены
+    const tokens = generateTokens(user);
+    
+    // Сохраняем новый refresh token
+    user.refreshToken = tokens.refreshToken;
+    await user.save();
+    
+    const userResponse = {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      role: user.role,
+      createdAt: user.createdAt
+    };
+    
+    res.json({
+      success: true,
+      message: 'Токен обновлен',
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: userResponse
+    });
+    
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Refresh token истек. Требуется повторный вход.' 
+      });
+    }
+    
+    res.status(401).json({ 
+      success: false, 
+      message: 'Недействительный refresh token' 
+    });
+  }
+});
+
+// 🔥 НОВЫЙ ЭНДПОИНТ: Выход из системы
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    // Удаляем refresh token из базы
+    await User.findByIdAndUpdate(req.user._id, { 
+      $unset: { refreshToken: 1 } 
+    });
+    
+    res.json({
+      success: true,
+      message: 'Выход выполнен успешно'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Ошибка при выходе' 
+    });
+  }
+});
+
+// Регистрация пользователя (ОБНОВЛЕНО с refresh token)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;
@@ -258,11 +464,12 @@ app.post('/api/auth/register', async (req, res) => {
       role: 'user'
     });
 
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'vetclinic_secret_2024',
-      { expiresIn: '30d' }
-    );
+    // Генерируем токены
+    const tokens = generateTokens(user);
+    
+    // Сохраняем refresh token в базе
+    user.refreshToken = tokens.refreshToken;
+    await user.save();
 
     const userResponse = {
       id: user._id,
@@ -277,7 +484,8 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Регистрация успешна',
-      token,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: userResponse
     });
 
@@ -290,7 +498,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Вход в систему
+// Вход в систему (ОБНОВЛЕНО с refresh token)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -311,17 +519,18 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'vetclinic_secret_2024',
-      { expiresIn: '30d' }
-    );
+    // Генерируем токены
+    const tokens = generateTokens(user);
+    
+    // Сохраняем refresh token в базе
+    user.refreshToken = tokens.refreshToken;
+    await user.save();
 
     const userResponse = {
       id: user._id,
       email: user.email,
       firstName: user.firstName,
-      lastName: user.lastName,
+      lastName: user.lastLastName,
       phone: user.phone,
       role: user.role,
       createdAt: user.createdAt
@@ -330,7 +539,8 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({
       success: true,
       message: 'Вход выполнен',
-      token,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: userResponse
     });
 
@@ -369,7 +579,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// Животные пользователя (только свои животные)
+// Животные пользователя
 app.get('/api/animals/user', authenticateToken, async (req, res) => {
   try {
     let query = {};
@@ -378,11 +588,14 @@ app.get('/api/animals/user', authenticateToken, async (req, res) => {
       query.createdBy = req.user._id;
     }
     
-    const animals = await Animal.find(query).populate('createdBy', 'firstName lastName');
+    const animals = await Animal.find(query)
+      .populate('createdBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
     
     res.json({
       success: true,
-      animals
+      animals,
+      count: animals.length
     });
   } catch (error) {
     console.error('Error getting animals:', error);
@@ -419,7 +632,8 @@ app.post('/api/animals', authenticateToken, async (req, res) => {
       status: 'active'
     });
 
-    const populatedAnimal = await Animal.findById(animal._id).populate('createdBy', 'firstName lastName');
+    const populatedAnimal = await Animal.findById(animal._id)
+      .populate('createdBy', 'firstName lastName');
 
     res.status(201).json({
       success: true,
@@ -474,11 +688,14 @@ app.delete('/api/animals/:id', authenticateToken, async (req, res) => {
 // Все животные (только для админа)
 app.get('/api/animals/all', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const animals = await Animal.find().populate('createdBy', 'firstName lastName email');
+    const animals = await Animal.find()
+      .populate('createdBy', 'firstName lastName email')
+      .sort({ createdAt: -1 });
     
     res.json({
       success: true,
-      animals
+      animals,
+      count: animals.length
     });
   } catch (error) {
     console.error('Error getting all animals:', error);
@@ -493,27 +710,17 @@ app.get('/api/animals/all', authenticateToken, isAdmin, async (req, res) => {
 
 // Получить всех активных ветеринаров (публичный)
 app.get('/api/vets', async (req, res) => {
-  console.log('=== ЗАПРОС К /api/vets ===');
-  
   try {
-    console.log('1. Проверяем подключение к MongoDB...');
-    console.log('Состояние подключения:', mongoose.connection.readyState);
-    // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-    
     if (mongoose.connection.readyState !== 1) {
-      console.log('❌ MongoDB НЕ подключена!');
       return res.status(500).json({ 
         success: false, 
         message: 'База данных не подключена' 
       });
     }
     
-    console.log('2. Ищем ветеринаров...');
     const vets = await Vet.find({ isActive: true })
       .select('-__v -createdAt -updatedAt -createdBy')
       .sort({ name: 1 });
-    
-    console.log('3. Найдено ветеринаров:', vets.length);
     
     res.json({
       success: true,
@@ -522,10 +729,7 @@ app.get('/api/vets', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ ОШИБКА в /api/vets:', error);
-    console.error('Детали ошибки:', error.message);
-    console.error('Стек ошибки:', error.stack);
-    
+    console.error('Error in /api/vets:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Ошибка получения списка ветеринаров: ' + error.message 
@@ -686,7 +890,7 @@ app.delete('/api/vets/:id', authenticateToken, isAdmin, async (req, res) => {
 app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
   try {
     const users = await User.find()
-      .select('-password -__v')
+      .select('-password -__v -refreshToken')
       .sort({ createdAt: -1 });
     
     res.json({
@@ -709,7 +913,6 @@ app.get('/api/appointments/user', authenticateToken, async (req, res) => {
   try {
     let query = { createdBy: req.user._id };
     
-    // Админы могут видеть все записи
     if (req.user.role === 'admin') {
       query = {};
     }
@@ -748,7 +951,6 @@ app.get('/api/appointments/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверка прав: только админ или владелец записи
     if (req.user.role !== 'admin' && appointment.createdBy._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ 
         success: false, 
@@ -774,7 +976,6 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
   try {
     const { animal, vet, service, date, time, notes, price } = req.body;
     
-    // Валидация
     if (!animal || !vet || !service || !date || !time) {
       return res.status(400).json({ 
         success: false, 
@@ -782,7 +983,6 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверяем, что животное принадлежит пользователю
     const animalDoc = await Animal.findById(animal);
     if (!animalDoc) {
       return res.status(404).json({ 
@@ -798,7 +998,6 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверяем ветеринара
     const vetDoc = await Vet.findById(vet);
     if (!vetDoc || !vetDoc.isActive) {
       return res.status(404).json({ 
@@ -807,7 +1006,6 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверяем, не занято ли время
     const existingAppointment = await Appointment.findOne({
       vet,
       date: new Date(date),
@@ -867,7 +1065,6 @@ app.put('/api/appointments/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверка прав
     if (req.user.role !== 'admin' && appointment.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ 
         success: false, 
@@ -875,7 +1072,6 @@ app.put('/api/appointments/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    // Обновляем поля
     if (service !== undefined) appointment.service = service;
     if (date !== undefined) appointment.date = new Date(date);
     if (time !== undefined) appointment.time = time;
@@ -916,7 +1112,6 @@ app.put('/api/appointments/:id/cancel', authenticateToken, async (req, res) => {
       });
     }
     
-    // Проверка прав
     if (req.user.role !== 'admin' && appointment.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ 
         success: false, 
@@ -999,7 +1194,6 @@ app.get('/api/appointments/vet/:vetId/availability', async (req, res) => {
     
     const targetDate = new Date(date);
     
-    // Получаем занятые слоты на эту дату
     const bookedAppointments = await Appointment.find({
       vet: vetId,
       date: targetDate,
@@ -1008,7 +1202,6 @@ app.get('/api/appointments/vet/:vetId/availability', async (req, res) => {
     
     const bookedTimes = bookedAppointments.map(app => app.time);
     
-    // Генерируем доступное время (с 9 до 18, интервал 30 минут)
     const availableSlots = [];
     const workStart = vet.workingHours.start || '09:00';
     const workEnd = vet.workingHours.end || '18:00';
@@ -1029,7 +1222,6 @@ app.get('/api/appointments/vet/:vetId/availability', async (req, res) => {
         });
       }
       
-      // Добавляем 30 минут
       currentMinute += 30;
       if (currentMinute >= 60) {
         currentHour += 1;
@@ -1062,7 +1254,6 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
     let animalQuery = {};
     let appointmentQuery = {};
-    let userQuery = {};
     
     if (req.user.role !== 'admin') {
       animalQuery.createdBy = req.user._id;
@@ -1078,28 +1269,28 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       date: { $gte: today },
       status: { $in: ['pending', 'confirmed'] }
     });
-    const totalUsers = await User.countDocuments(userQuery);
+    const totalUsers = await User.countDocuments();
     const totalVets = await Vet.countDocuments({ isActive: true });
     
     res.json({
       success: true,
-      stats: [
-        { title: 'Всего животных', value: totalAnimals.toString(), change: '+0%', icon: '🐕' },
-        { title: 'Записей сегодня', value: todayAppointments.toString(), change: '+0%', icon: '📅' },
-        { title: 'Активных пользователей', value: totalUsers.toString(), change: '+0%', icon: '👥' },
-        { title: 'Ветеринаров', value: totalVets.toString(), change: '+0', icon: '👨‍⚕️' }
-      ]
+      stats: {
+        totalAnimals,
+        todayAppointments,
+        totalUsers,
+        totalVets
+      }
     });
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.json({
       success: true,
-      stats: [
-        { title: 'Всего животных', value: '0', change: '+0%', icon: '🐕' },
-        { title: 'Записей сегодня', value: '0', change: '+0%', icon: '📅' },
-        { title: 'Активных пользователей', value: '0', change: '+0%', icon: '👥' },
-        { title: 'Ветеринаров', value: '0', change: '+0', icon: '👨‍⚕️' }
-      ]
+      stats: {
+        totalAnimals: 0,
+        todayAppointments: 0,
+        totalUsers: 0,
+        totalVets: 0
+      }
     });
   }
 });
@@ -1108,12 +1299,16 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'Vet Clinic API',
-    version: '1.0.0',
-    frontend: 'https://monumental-hotteok-00260b.netlify.app',
+    version: '1.1.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
     endpoints: {
       auth: {
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',
+        verify: 'GET /api/auth/verify',
+        refresh: 'POST /api/auth/refresh',
+        logout: 'POST /api/auth/logout',
         profile: 'GET /api/auth/me'
       },
       animals: {
@@ -1122,29 +1317,9 @@ app.get('/', (req, res) => {
         deleteAnimal: 'DELETE /api/animals/:id',
         allAnimals: 'GET /api/animals/all (admin only)'
       },
-      appointments: {
-        userAppointments: 'GET /api/appointments/user',
-        createAppointment: 'POST /api/appointments',
-        getAppointment: 'GET /api/appointments/:id',
-        updateAppointment: 'PUT /api/appointments/:id',
-        cancelAppointment: 'PUT /api/appointments/:id/cancel',
-        deleteAppointment: 'DELETE /api/appointments/:id (admin only)',
-        availability: 'GET /api/appointments/vet/:vetId/availability?date=YYYY-MM-DD'
-      },
-      vets: {
-        getVets: 'GET /api/vets',
-        getVet: 'GET /api/vets/:id',
-        adminVets: 'GET /api/vets/admin/all (admin only)',
-        createVet: 'POST /api/vets (admin only)',
-        updateVet: 'PUT /api/vets/:id (admin only)',
-        deleteVet: 'DELETE /api/vets/:id (admin only)'
-      },
-      users: {
-        getUsers: 'GET /api/users (admin only)'
-      },
-      dashboard: {
-        stats: 'GET /api/dashboard/stats'
-      }
+      vets: 'GET /api/vets',
+      appointments: 'GET /api/appointments/user',
+      dashboard: 'GET /api/dashboard/stats'
     }
   });
 });
@@ -1158,21 +1333,37 @@ app.use('*', (req, res) => {
   });
 });
 
+// Обработка ошибок
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Требуется авторизация'
+    });
+  }
+  
+  res.status(500).json({
+    success: false,
+    message: 'Внутренняя ошибка сервера',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('====================================');
   console.log(`✅ Сервер запущен на порту ${PORT}`);
   console.log(`🌐 API доступно по адресу: http://localhost:${PORT}`);
-  console.log(`🌐 Ваш фронтенд: https://monumental-hotteok-00260b.netlify.app`);
+  console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🌐 Ваш фронтенд: https://lucky-parfait-382f06.netlify.app`);
   console.log('====================================\n');
   
-  console.log('📋 Важные эндпоинты:');
-  console.log('  📊 Health check: GET /api/health');
-  console.log('  👤 Регистрация: POST /api/auth/register');
-  console.log('  🔐 Вход: POST /api/auth/login');
-  console.log('  🐕 Мои животные: GET /api/animals/user');
-  console.log('  📅 Мои записи: GET /api/appointments/user');
-  console.log('  👨‍⚕️ Ветеринары: GET /api/vets');
+  console.log('🔥 Ключевые фиксы:');
+  console.log('  ✅ Добавлен /api/auth/verify для проверки токена');
+  console.log('  ✅ Добавлен /api/auth/refresh для обновления токена');
+  console.log('  ✅ Добавлен /api/auth/logout для выхода');
   console.log('\n====================================');
 });
