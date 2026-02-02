@@ -14,7 +14,6 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'https://veterinary-clinic-front.onrender.com',
       'https://magical-belekoy-c5a3b3.netlify.app/',
       'http://localhost:3000',
       'http://localhost:5173',
