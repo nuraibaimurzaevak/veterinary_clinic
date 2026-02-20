@@ -1,70 +1,129 @@
-# Getting Started with Create React App
+# 🏥 Ветеринарная клиника
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Веб-приложение для управления ветеринарной клиникой. Позволяет записываться на приём, управлять пациентами и просматривать историю посещений.
 
-## Available Scripts
+## 🛠 Технологии
 
-In the project directory, you can run:
+**Frontend:**
 
-### `npm start`
+- React 18
+  
+- JavaScript (ES6+)
+  
+- HTML5 / CSS3
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+**Backend:**
+- Node.js
+  
+- Express.js
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+**База данных:**
+MongoDB Cloud
 
-### `npm test`
+## 🚀 Установка и запуск
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Предварительные требования
 
-### `npm run build`
+- Node.js (версия 16 или выше)
+  
+- npm 
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 1. Клонирование репозитория
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+git clone https://github.com/nuraibaimurzaevak/veterinary_clinic.git
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+cd veterinary_clinic
 
-### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# 2. Установка зависимостей
+Backend:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+cd server
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+npm install
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Frontend:
 
-## Learn More
+cd frontend
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+npm install
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# 4. Настройка окружения
 
-### Code Splitting
+Создайте файл .env в папке server и добавьте:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+PORT=5000
 
-### Analyzing the Bundle Size
+DB_CONNECTION=ваша_строка_подключения_к_бд
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+JWT_SECRET=ваш_секретный_ключ
 
-### Making a Progressive Web App
+# 4. Запуск приложения
+   
+# Backend:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+cd backend
 
-### Advanced Configuration
+npm start
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+или для разработки
 
-### Deployment
+npm run dev
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+# Frontend (в новом терминале):
 
-### `npm run build` fails to minify
+cd client
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+npm start
+
+Приложение будет доступно по адресу: http://localhost:3000
+
+# 📁 Структура проекта
+
+veterinary_clinic/
+
+├── client/                 # React приложение (frontend)
+
+│   ├── public/
+
+│   ├── src/
+
+│   │   ├── components/     # React компоненты
+
+│   │   ├── pages/          # Страницы приложения
+
+│   │   ├── services/       # API запросы
+
+│   │   └── App.js
+
+│   └── package.json
+
+├── server/                 # Node.js API (backend)
+
+│   ├── controllers/        # Контроллеры
+
+│   ├── models/             # Модели данных
+
+│   ├── routes/             # Маршруты API
+
+│   ├── middleware/         # Промежуточные обработчики
+
+│   └── server.js
+
+└── README.md
+
+# ✨ Функционал
+
+📅 Онлайн-запись на приём к врачу
+
+🐕 Управление карточками своих питомцев
+
+🐕 Управление карточками пациентов (питомцев)
+
+📋 История посещений и назначений
+
+🔍 Поиск и фильтрация записей
+
+📞 Контакты клиники и обратная связь
+
+📝 API Endpoints
